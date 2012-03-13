@@ -15,19 +15,19 @@ URL_FLEETS = HOST + "/fleets/list/all/%d/"
 URL_PLANET_DETAIL = HOST + "/planets/%d/info/"
 URL_FLEET_DETAIL = HOST + "/fleets/%d/info/"
 
-ALL_SHIPS = set((
-  'superbattleships',
-  'bulkfreighters',
-  'subspacers',
-  'arcs',
-  'blackbirds',
-  'merchantmen',
-  'scouts',
-  'battleships',
-  'destroyers',
-  'frigates',
-  'cruisers',
-))
+ALL_SHIPS = {
+  'superbattleships': {'steel':8000, 'unobtanium':102, 'population':150, 'food':300, 'antimatter':1050, 'money':75000, 'krellmetal':290},
+  'bulkfreighters': {'steel':2500, 'unobtanium':0, 'population':20, 'food':20, 'antimatter':50, 'money':1500, 'krellmetal':0},
+  'subspacers': {'steel':625, 'unobtanium':0, 'population':50, 'food':50, 'antimatter':250, 'money':12500, 'krellmetal':16},
+  'arcs': {'steel':9000, 'unobtanium':0, 'population':2000, 'food':1000, 'antimatter':500, 'money':10000, 'krellmetal':0},
+  'blackbirds': {'steel':500, 'unobtanium':25, 'population':5, 'food':5, 'antimatter':125, 'money':10000, 'krellmetal':50},
+  'merchantmen': {'steel':750, 'unobtanium':0, 'population':20, 'food':20, 'antimatter':50, 'money':1000, 'krellmetal':0},
+  'scouts': {'steel':250, 'unobtanium':0, 'population':5, 'food':5, 'antimatter':25, 'money':250, 'krellmetal':0},
+  'battleships': {'steel':4000, 'unobtanium':20, 'population':110, 'food':200, 'antimatter':655, 'money':25000, 'krellmetal':155},
+  'destroyers': {'steel':1200, 'unobtanium':0, 'population':60, 'food':70, 'antimatter':276, 'money':5020, 'krellmetal':0},
+  'frigates': {'steel':950, 'unobtanium':0, 'population':50, 'food':50, 'antimatter':200, 'money':1250, 'krellmetal':0},
+  'cruisers': {'steel':1625, 'unobtanium':0, 'population':80, 'food':100, 'antimatter':385, 'money':15000, 'krellmetal':67},
+}
 
 def pairs(t):
   return izip(*[iter(t)]*2)
@@ -63,7 +63,7 @@ class Galaxy:
       self.ships = dict()
       for k,v in pairs(soup('h3')[0].findAllNext('td')):
         shiptype = re.match(r'[a-z]+', k.string).group()
-        if not shiptype in ALL_SHIPS: continue
+        if not shiptype in ALL_SHIPS.keys(): continue
         self.ships[shiptype] = int(v.string)
       self._loaded = True
 
@@ -98,7 +98,16 @@ class Galaxy:
       self.krellmetal=map(int, data[i:i+3]) ; i+=3
 
       self._loaded = True
-
+    def can_build(self, ships):
+      # TODO(cwren) generalize to take a manifest of ships
+      return (self.money > ALL_SHIPS['arcs']['money'] and
+              self.steel[0] > ALL_SHIPS['arcs']['steel'] and
+              self.population > ALL_SHIPS['arcs']['population'] and
+              self.unobtainium[0] > ALL_SHIPS['arcs']['unobtanium'] and
+              self.food[0] > ALL_SHIPS['arcs']['food'] and
+              self.antimatter[0] > ALL_SHIPS['arcs']['antimatter'] and
+              self.krellmetal[0] > ALL_SHIPS['arcs']['krellmetal'])
+                                           
   def __init__(self):
     self._planets = None
     self._fleets = None
