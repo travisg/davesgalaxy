@@ -3,6 +3,7 @@ import urllib
 import urllib2
 import json
 import re
+import sys
 from itertools import izip
 from BeautifulSoup import BeautifulSoup
 
@@ -101,16 +102,22 @@ class Galaxy:
   def __init__(self):
     self._planets = None
     self._fleets = None
+    self._logged_in = False
     self.jar = cookielib.LWPCookieJar()
     try:
       self.jar.load("login.dat")
+      self._logged_in = True
     except:
       pass
     self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.jar))
-  def login(self, u, p):
-    self.opener.open(URL_LOGIN,
-      urllib.urlencode(dict(usernamexor=u, passwordxor=p)))
-    self.jar.save("login.dat")
+  def login(self, u, p, force=False):
+    if force or not self._logged_in:
+      self.opener.open(URL_LOGIN,
+        urllib.urlencode(dict(usernamexor=u, passwordxor=p)))
+      self.jar.save("login.dat")
+      self._logged_in = True
+    else:
+      sys.stderr.write("using stored credentials\n")
 
   @property
   def planets(self):
