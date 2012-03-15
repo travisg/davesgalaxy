@@ -3,6 +3,7 @@ import urllib
 import urllib2
 import json
 import re
+import subprocess
 import sys
 from itertools import izip
 from BeautifulSoup import BeautifulSoup
@@ -14,6 +15,7 @@ URL_PLANETS = HOST + "/planets/list/all/%d/"
 URL_FLEETS = HOST + "/fleets/list/all/%d/"
 URL_PLANET_DETAIL = HOST + "/planets/%d/info/"
 URL_FLEET_DETAIL = HOST + "/fleets/%d/info/"
+URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
 
 ALL_SHIPS = {
   'superbattleships': {'steel':8000, 'unobtanium':102, 'population':150, 'food':300, 'antimatter':1050, 'money':75000, 'krellmetal':290},
@@ -90,7 +92,7 @@ class Galaxy:
       self.population=int(data[i]) ; i+=1
       self.money=int(data[i].split()[0]) ; i+=1
       self.steel=map(int, data[i:i+3]) ; i+=3
-      self.unobtainium=map(int, data[i:i+3]) ; i+=3
+      self.unobtanium=map(int, data[i:i+3]) ; i+=3
       self.food=map(int, data[i:i+3]) ; i+=3
       self.antimatter=map(int, data[i:i+3]) ; i+=3
       self.consumergoods=map(int, data[i:i+3]) ; i+=3
@@ -98,15 +100,59 @@ class Galaxy:
       self.krellmetal=map(int, data[i:i+3]) ; i+=3
 
       self._loaded = True
-    def can_build(self, ships):
-      # TODO(cwren) generalize to take a manifest of ships
-      return (self.money > ALL_SHIPS['arcs']['money'] and
-              self.steel[0] > ALL_SHIPS['arcs']['steel'] and
-              self.population > ALL_SHIPS['arcs']['population'] and
-              self.unobtainium[0] > ALL_SHIPS['arcs']['unobtanium'] and
-              self.food[0] > ALL_SHIPS['arcs']['food'] and
-              self.antimatter[0] > ALL_SHIPS['arcs']['antimatter'] and
-              self.krellmetal[0] > ALL_SHIPS['arcs']['krellmetal'])
+    def ship_cost(self, manifest):
+      cost = {'money': 0,
+              'steel': 0,
+              'population': 0,
+              'unobtanium': 0,
+              'food': 0,
+              'antimatter': 0,
+              'krellmetal': 0}
+      for type,quantity in manifest.items():
+        cost['money'] += quantity * ALL_SHIPS[type]['money']
+        cost['steel'] += quantity * ALL_SHIPS[type]['steel']
+        cost['population'] += quantity * ALL_SHIPS[type]['population']
+        cost['unobtanium'] += quantity * ALL_SHIPS[type]['unobtanium']
+        cost['food'] += quantity * ALL_SHIPS[type]['food']
+        cost['antimatter'] += quantity * ALL_SHIPS[type]['antimatter']
+        cost['krellmetal'] += quantity * ALL_SHIPS[type]['krellmetal']
+      return cost
+    def can_build(self, manifest):
+      self.load()
+      cost = self.ship_cost(manifest)
+      return (self.money >= cost['money'] and 
+              self.steel[0] >= cost['steel'] and 
+              self.population >= cost['population'] and 
+              self.unobtanium[0] >= cost['unobtanium'] and 
+              self.food[0] >= cost['food'] and 
+              self.antimatter[0] >= cost['antimatter'] and 
+              self.krellmetal[0] >= cost['krellmetal'])
+    def build_fleet(self, manifest, interactive=False, skip_check=False):
+      if skip_check or self.can_build(manifest):
+        formdata = {}
+        formdata['submit-build-%d' % self.planetid] = 1
+        formdata['submit-build-another-%d' % self.planetid] =1
+        for type,quantity in manifest.items():
+          formdata['num-%s' % type] = quantity
+        req = self.galaxy.opener.open(URL_BUILD_FLEET % self.planetid,
+                               urllib.urlencode(formdata))
+        response = req.read()
+        if 'Fleet Built' in response: 
+          if self._loaded:
+            cost = self.ship_cost(manifest)
+            self.money -= cost['money']
+            self.steel[0] -= cost['steel']
+            self.population -= cost['population']
+            self.unobtanium[0] -= cost['unobtanium']
+            self.food[0] -= cost['food']
+            self.antimatter[0] -= cost['antimatter']
+            self.krellmetal[0] -= cost['krellmetal']
+          if interactive:
+            print '\n calling browser to complete transaction with:'
+            js = 'javascript:handleserverresponse(%s);' % response
+            subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
+        else:
+          print response
                                            
   def __init__(self):
     self._planets = None
@@ -128,6 +174,12 @@ class Galaxy:
     else:
       sys.stderr.write("using stored credentials\n")
 
+  def get_planet(self, id):
+    for p in self.planets:
+      if id == p.planetid:
+        return p
+    return None
+    
   @property
   def planets(self):
     if self._planets: return self._planets
