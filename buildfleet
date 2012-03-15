@@ -6,28 +6,17 @@ import sys
 U,P,planetid=sys.argv[1:4]
 tobuild=sys.argv[4:]
 
+# TODO(cwren) make these flags
 interactive = True
+skip_check = False
 
-ships=dict(
-  superbattleships=0,
-  bulkfreighters=0,
-  subspacers=0,
-  arcs=0,
-  blackbirds=0,
-  merchantmen=0,
-  scouts=0,
-  battleships=0,
-  destroyers=0,
-  frigates=0,
-  cruisers=0
-)
+g=game.Galaxy()
+g.login(U,P)
 
-#ships['scouts'] = 1
-#ships['superbattleships'] = 4
 manifest = {}
 for pr in tobuild:
   ship, qty = pr.split("=")
-  if ship in ships:
+  if ship in game.ALL_SHIPS.keys():
     if ship in manifest:
       manifest[ship] += int(qty)
     else:
@@ -36,15 +25,13 @@ for pr in tobuild:
     print "error: unknown ship type: " + ship
     sys.exit(1)
 
-g=game.Galaxy()
-g.login(U,P)
 planet = g.get_planet(int(planetid))
 
 if not planet:
     print "error: unknown planet: " + planetid
     sys.exit(1)
 
-if planet.can_build(manifest):
-  planet.build_fleet(manifest, interactive=True)
+if skip_check or planet.can_build(manifest):
+  planet.build_fleet(manifest, interactive=interactive, skip_check=False)
 else:
     print "error: planet cannot afford that fleet"
