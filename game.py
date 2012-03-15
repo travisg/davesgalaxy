@@ -148,11 +148,16 @@ class Galaxy:
             self.antimatter[0] -= cost['antimatter']
             self.krellmetal[0] -= cost['krellmetal']
           if interactive:
-            print '\n calling browser to complete transaction with:'
             js = 'javascript:handleserverresponse(%s);' % response
             subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
         else:
           print response
+    def view(self):
+      self.load()
+      js = 'javascript:gm.centermap(%d, %d);' % (self.location[0],
+                                                 self.location[1])
+      subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
+      
                                            
   def __init__(self):
     self._planets = None
