@@ -185,6 +185,12 @@ class Galaxy:
         return p
     return None
     
+  def find_planet(self, name):
+    for p in self.planets:
+      if name == p.name:
+        return p
+    return None
+    
   @property
   def planets(self):
     if self._planets: return self._planets

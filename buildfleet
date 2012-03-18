@@ -1,17 +1,33 @@
 #!/usr/bin/python
 
 import game
+from optparse import OptionParser
 import sys
 
-U,P,planetid=sys.argv[1:4]
-tobuild=sys.argv[4:]
+parser = OptionParser()
+parser.add_option("-U", "--username", dest="username",
+                  help="username of login")
+parser.add_option("-P", "--password", dest="password",
+                  help="password for login")
+parser.add_option("-q", "--quick",
+                  action="store_true", dest="quick", default=False,
+                  help="only issue the build request, without sanity checks.")
+parser.add_option("-i", "--interactive",
+                  action="store_true", dest="interactive", default=False,
+                  help="catch reply and send to the browser.")
+(options, args) = parser.parse_args()
 
-# TODO(cwren) make these flags
-interactive = True
-skip_check = False
+planetid = args[0]
+tobuild = args[1:]
 
-g=game.Galaxy()
-g.login(U,P)
+g = game.Galaxy()
+
+if options.username and options.password:
+  # explicit login
+  g.login(options.username, options.password, force=True)
+else:
+  # try to pick up stored credentials
+  g.login("", "")
 
 manifest = {}
 for pr in tobuild:
@@ -25,13 +41,19 @@ for pr in tobuild:
     print "error: unknown ship type: " + ship
     sys.exit(1)
 
-planet = g.get_planet(int(planetid))
-
+try:
+  planet = game.Galaxy.Planet(g, int(planetid), 'unknown')
+except ValueError:
+  planet = g.find_planet(planetid)
+  print "using planet %d with name %s" % (planet.planetid, planet.name)
+  
 if not planet:
-    print "error: unknown planet: " + planetid
-    sys.exit(1)
+  print "error: unknown planet: " + planetid
+  sys.exit(1)
 
-if skip_check or planet.can_build(manifest):
-  planet.build_fleet(manifest, interactive=interactive, skip_check=False)
+if options.quick or planet.can_build(manifest):
+  planet.build_fleet(manifest,
+                     interactive=options.interactive,
+                     skip_check=True)
 else:
     print "error: planet cannot afford that fleet"
