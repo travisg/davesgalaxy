@@ -46,6 +46,7 @@ class Galaxy:
       self.fleetid = int(fleetid)
       self.coords = coords
       self._loaded = False
+      self._alien = False
     def __repr__(self):
       return "<Fleet #%d%s @ (%.1f,%.1f)>" % (self.fleetid, 
         (' (%s, %d ships)' % (self.disposition, len(self.ships))) \
@@ -89,15 +90,19 @@ class Galaxy:
       i=6
       if soup.find(text='Distance to Capital:'): i+=1
       if soup.find(text='Open Trading:'): i+=2
-      self.population=int(data[i]) ; i+=1
-      self.money=int(data[i].split()[0]) ; i+=1
-      self.steel=map(int, data[i:i+3]) ; i+=3
-      self.unobtanium=map(int, data[i:i+3]) ; i+=3
-      self.food=map(int, data[i:i+3]) ; i+=3
-      self.antimatter=map(int, data[i:i+3]) ; i+=3
-      self.consumergoods=map(int, data[i:i+3]) ; i+=3
-      self.hydrocarbon=map(int, data[i:i+3]) ; i+=3
-      self.krellmetal=map(int, data[i:i+3]) ; i+=3
+      try:
+        self.population=int(data[i]) ; i+=1
+        self.money=int(data[i].split()[0]) ; i+=1
+        self.steel=map(int, data[i:i+3]) ; i+=3
+        self.unobtanium=map(int, data[i:i+3]) ; i+=3
+        self.food=map(int, data[i:i+3]) ; i+=3
+        self.antimatter=map(int, data[i:i+3]) ; i+=3
+        self.consumergoods=map(int, data[i:i+3]) ; i+=3
+        self.hydrocarbon=map(int, data[i:i+3]) ; i+=3
+        self.krellmetal=map(int, data[i:i+3]) ; i+=3
+      except IndexError:
+        self._alien = True
+        print "loaded alient planet"
 
       self._loaded = True
     def ship_cost(self, manifest):

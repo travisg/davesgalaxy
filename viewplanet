@@ -1,0 +1,26 @@
+#!/usr/bin/python
+
+import game
+from optparse import OptionParser
+import sys
+
+parser = OptionParser()
+parser.add_option("-U", "--username", dest="username",
+                  help="username of login")
+parser.add_option("-P", "--password", dest="password",
+                  help="password for login")
+(options, args) = parser.parse_args()
+
+planetid = args[0]
+
+g = game.Galaxy()
+
+try:
+  planet = game.Galaxy.Planet(g, int(planetid), 'unknown')
+except ValueError:
+  planet = g.find_planet(planetid)
+  print "using planet %d with name %s" % (planet.planetid, planet.name)
+
+planet.load()
+print planet.location
+planet.view()
