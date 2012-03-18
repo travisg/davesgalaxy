@@ -1,10 +1,23 @@
 #!/usr/bin/env python
 
 import game
+from optparse import OptionParser
 import sys
-import subprocess
 
-U,P = sys.argv[1:3]
+parser = OptionParser()
+parser.add_option("-U", "--username", dest="username",
+                  help="username of login")
+parser.add_option("-P", "--password", dest="password",
+                  help="password for login")
+(options, args) = parser.parse_args()
+
+g=game.Galaxy()
+if options.username and options.password:
+  # explicit login
+  g.login(options.username, options.password, force=True)
+else:
+  # try to pick up stored credentials
+  g.login("", "")
 
 def default_input(prompt, default):
   response = raw_input(prompt)
@@ -18,30 +31,25 @@ solo = {'arcs': 1}
 SOLO_PROMPT = 'build solo arc at "%s"? (Y/v/n): '
 ESCORTED_PROMPT = 'build escorted arc at "%s"? (Y/v/n): '
 
-g=game.Galaxy()
-g.login(U,P)
-print 'Name, ID, Society, Population, Money, Food, Steel'
+print 'Name, ID, Society, Money, Antimatter, Steel'
 for p in g.planets:
-  try:
-    p.load()
-    print '"%s", %d, %d, %d, %d, %d, %d' % (
-      p.name, p.planetid, p.society, p.population, p.money, p.food[0], p.steel[0]
-    )
-    confirm = 'y'
-    while confirm == 'y' and p.can_build(solo):
-      if p.can_build(escorted):
-        confirm = default_input(ESCORTED_PROMPT % (p.name), 'y')
-        if confirm == 'y':
-          p.build_fleet(escorted, interactive=True)
-        elif confirm == 'v':
-          p.view()
-          confirm = 'y'
-      else:
-        confirm = default_input(SOLO_PROMPT % (p.name), 'y')
-        if confirm == 'y':
-          p.build_fleet(solo, interactive=True)
-        elif confirm == 'v':
-          p.view()
-          confirm = 'y'
-  except ValueError:
-    print "failed to laod %s" % p.name
+  p.load()
+  print '"%s", %d, %d, %d, %d, %d' % (
+    p.name, p.planetid, p.society, p.money, p.antimatter[0], p.steel[0]
+  )
+  confirm = 'y'
+  while confirm == 'y' and p.can_build(solo):
+    if p.can_build(escorted):
+      confirm = default_input(ESCORTED_PROMPT % (p.name), 'y')
+      if confirm == 'y':
+        p.build_fleet(escorted, interactive=True)
+      elif confirm == 'v':
+        p.view()
+        confirm = 'y'
+    else:
+      confirm = default_input(SOLO_PROMPT % (p.name), 'y')
+      if confirm == 'y':
+        p.build_fleet(solo, interactive=True)
+      elif confirm == 'v':
+        p.view()
+        confirm = 'y'

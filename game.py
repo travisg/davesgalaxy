@@ -46,7 +46,6 @@ class Galaxy:
       self.fleetid = int(fleetid)
       self.coords = coords
       self._loaded = False
-      self._alien = False
     def __repr__(self):
       return "<Fleet #%d%s @ (%.1f,%.1f)>" % (self.fleetid, 
         (' (%s, %d ships)' % (self.disposition, len(self.ships))) \
@@ -86,10 +85,24 @@ class Galaxy:
 
       self.society = int(soup('div',{'class':'info1'})[0]('div')[2].string)
       data = [x.string.strip() for x in soup('td',{'class':'planetinfo2'})]
-      self.location=map(float, re.findall(r'[0-9.]+', data[2]))
-      i=6
-      if soup.find(text='Distance to Capital:'): i+=1
-      if soup.find(text='Open Trading:'): i+=2
+      i = 1
+      self.owner=data[i]; i+=1
+      self.location=map(float, re.findall(r'[0-9.]+', data[i])); i+=1
+      if soup.find(text='Distance to Capital:'):
+        self.distance=float(data[i]) ; i+=1
+      else:
+        self.distance=0.0
+      if soup.find(text='Income Tax Rate:'):
+        self.tax=float(data[i]) ; i+=1
+      else:
+        self.tax=0.0
+      if soup.find(text='Open Ship Yard:'): i+=1
+      if soup.find(text='Trades Rare Commodities:'): i+=1
+      if soup.find(text='Open Trading:'): i+=1
+      if soup.find(text='Tariff Rate:'):
+        self.tarif=float(data[i]) ; i+=1
+      else:
+        self.tarif=0.0
       try:
         self.population=int(data[i]) ; i+=1
         self.money=int(data[i].split()[0]) ; i+=1
@@ -101,8 +114,7 @@ class Galaxy:
         self.hydrocarbon=map(int, data[i:i+3]) ; i+=3
         self.krellmetal=map(int, data[i:i+3]) ; i+=3
       except IndexError:
-        self._alien = True
-        print "loaded alient planet"
+        sys.stderr.write("loaded alien planet\n")
 
       self._loaded = True
     def ship_cost(self, manifest):

@@ -1,17 +1,30 @@
 #!/usr/bin/env python
 
 import game
+from optparse import OptionParser
 import sys
 
-U,P = sys.argv[1:3]
+parser = OptionParser()
+parser.add_option("-U", "--username", dest="username",
+                  help="username of login")
+parser.add_option("-P", "--password", dest="password",
+                  help="password for login")
+(options, args) = parser.parse_args()
 
 g=game.Galaxy()
-g.login(U,P)
-print 'Name, ID, Society, Population, Money, Food, Steel'
+if options.username and options.password:
+  # explicit login
+  g.login(options.username, options.password, force=True)
+else:
+  # try to pick up stored credentials
+  g.login("", "")
+
+print 'Name, ID, Society, Population, Money, Food, Steel, Tax, Tarif, Distance'
 for p in g.planets:
   p.load()
-  print '"%s", %d, %d, %d, %d, %d, %d' % (
-    p.name, p.planetid, p.society, p.population, p.money, p.food[0], p.steel[0]
-  )
+  print '"%s", %d, %d, %d, %d, %d, %d, %3.1f, %3.1f, %3.1f' % (
+    p.name, p.planetid, p.society, p.population, 
+    p.money, p.food[0], p.steel[0], p.tax, p.tarif, p.distance
+    )
 
 
