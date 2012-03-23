@@ -22,7 +22,7 @@ else:
 print 'Name, ID, Society, Population, Money, Food, Steel, Tax, Tarif, Distance'
 for p in g.planets:
   p.load()
-  print '"%s", %d, %d, %d, %d, %d, %d, %3.1f, %3.1f, %3.1f' % (
+  print '"%s", %d, %d, %d, %d, %d, %d, %.1f, %.1f, %.1f' % (
     p.name, p.planetid, p.society, p.population, 
     p.money, p.food[0], p.steel[0], p.tax, p.tarif, p.distance
     )

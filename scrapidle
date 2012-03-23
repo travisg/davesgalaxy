@@ -10,6 +10,8 @@ parser.add_option("-U", "--username", dest="username",
                   help="username of login")
 parser.add_option("-P", "--password", dest="password",
                   help="password for login")
+parser.add_option("-t", "--type", dest="type",
+                  help="type of ship to build", default="frigates")
 (options, args) = parser.parse_args()
 
 g=game.Galaxy()
@@ -20,23 +22,26 @@ else:
   # try to pick up stored credentials
   g.login("", "")
 
+sink_opt = args[0]
+try:
+  sink = g.get_planet(int(sink_opt))
+except ValueError:
+  sink = g.find_planet(sink_opt)
+sink.load()
+print "using planet %d with name %s" % (sink.planetid, sink.name)
+
 def dictstr(d):
   return "(" + " ".join(
     "%s=%s" % (str(k),str(v)) for (k,v) in d.items()) + ")"
 
-print 'ID, Disposition, Coords, Destination, Ships'
+steel = sink.steel[0]
 for f in g.fleets:
-  f.load()
-  dest = f.destination
-  if type(dest) in (types.ListType, types.TupleType):
-    dest = '(%.1f,%.1f)' % tuple(dest)
-  else:
-    dest = str(dest)
-  print '%d %s (%.1f,%.1f)-->%s %s' % (
-    f.fleetid, f.disposition, 
-    f.coords[0], f.coords[1],
-    dest,
-    dictstr(f.ships)
-  )
+  if f.at(sink):
+    print '%d is at %s' % (f.fleetid, sink.name)
+    f.load()
+    if options.type in f.ships and len(f.ships.keys()) == 1:
+      print '   found mule fleet: scrapping.'
+      sink.scrap_fleet(f)
+print "recovered %d steel" % (sink.steel[0] -  steel)
 
 

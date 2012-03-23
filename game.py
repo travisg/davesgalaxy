@@ -1,10 +1,12 @@
 import cookielib
+import math
 import urllib
 import urllib2
 import json
 import re
 import subprocess
 import sys
+import types
 from itertools import izip
 from BeautifulSoup import BeautifulSoup
 
@@ -15,20 +17,88 @@ URL_PLANETS = HOST + "/planets/list/all/%d/"
 URL_FLEETS = HOST + "/fleets/list/all/%d/"
 URL_PLANET_DETAIL = HOST + "/planets/%d/info/"
 URL_FLEET_DETAIL = HOST + "/fleets/%d/info/"
+URL_MOVE_TO_PLANET = HOST + "/fleets/%d/movetoplanet/"
 URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
+URL_SCRAP_FLEET = HOST + "/fleets/%d/scrap/"
 
 ALL_SHIPS = {
-  'superbattleships': {'steel':8000, 'unobtanium':102, 'population':150, 'food':300, 'antimatter':1050, 'money':75000, 'krellmetal':290},
-  'bulkfreighters': {'steel':2500, 'unobtanium':0, 'population':20, 'food':20, 'antimatter':50, 'money':1500, 'krellmetal':0},
-  'subspacers': {'steel':625, 'unobtanium':0, 'population':50, 'food':50, 'antimatter':250, 'money':12500, 'krellmetal':16},
-  'arcs': {'steel':9000, 'unobtanium':0, 'population':2000, 'food':1000, 'antimatter':500, 'money':10000, 'krellmetal':0},
-  'blackbirds': {'steel':500, 'unobtanium':25, 'population':5, 'food':5, 'antimatter':125, 'money':10000, 'krellmetal':50},
-  'merchantmen': {'steel':750, 'unobtanium':0, 'population':20, 'food':20, 'antimatter':50, 'money':1000, 'krellmetal':0},
-  'scouts': {'steel':250, 'unobtanium':0, 'population':5, 'food':5, 'antimatter':25, 'money':250, 'krellmetal':0},
-  'battleships': {'steel':4000, 'unobtanium':20, 'population':110, 'food':200, 'antimatter':655, 'money':25000, 'krellmetal':155},
-  'destroyers': {'steel':1200, 'unobtanium':0, 'population':60, 'food':70, 'antimatter':276, 'money':5020, 'krellmetal':0},
-  'frigates': {'steel':950, 'unobtanium':0, 'population':50, 'food':50, 'antimatter':200, 'money':1250, 'krellmetal':0},
-  'cruisers': {'steel':1625, 'unobtanium':0, 'population':80, 'food':100, 'antimatter':385, 'money':15000, 'krellmetal':67},
+  'superbattleships': {'steel':8000,
+                       'unobtanium':102,
+                       'population':150,
+                       'food':300,
+                       'antimatter':1050,
+                       'money':75000,
+                       'krellmetal':290},
+  'bulkfreighters': {'steel':2500,
+                     'unobtanium':0,
+                     'population':20,
+                     'food':20,
+                     'antimatter':50,
+                     'money':1500,
+                     'krellmetal':0},
+  'subspacers': {'steel':625,
+                 'unobtanium':0,
+                 'population':50,
+                 'food':50,
+                 'antimatter':250,
+                 'money':12500,
+                 'krellmetal':16},
+  'arcs': {'steel':9000,
+           'unobtanium':0,
+           'population':2000,
+           'food':1000,
+           'antimatter':500,
+           'money':10000,
+           'krellmetal':0},
+  'blackbirds': {'steel':500,
+                 'unobtanium':25,
+                 'population':5,
+                 'food':5,
+                 'antimatter':125,
+                 'money':10000,
+                 'krellmetal':50},
+  'merchantmen': {'steel':750,
+                  'unobtanium':0,
+                  'population':20,
+                  'food':20,
+                  'antimatter':50,
+                  'money':6000,
+                  'krellmetal':0},
+  'scouts': {'steel':250,
+             'unobtanium':0,
+             'population':5,
+             'food':5,
+             'antimatter':25,
+             'money':250,
+             'krellmetal':0},
+  'battleships': {'steel':4000,
+                  'unobtanium':20,
+                  'population':110,
+                  'food':200,
+                  'antimatter':655,
+                  'money':25000,
+                  'krellmetal':155},
+  'destroyers': {'steel':1200,
+                 'unobtanium':0,
+                 'population':60,
+                 'food':70,
+                 'antimatter':276,
+                 'money':5020,
+                 'krellmetal':0},
+  'frigates': {'steel':950,
+               'unobtanium':0,
+               'population':50,
+               'food':50,
+               'antimatter':200,
+               'money':1250,
+               'krellmetal':0},
+  'cruisers': {'steel':1625,
+               'unobtanium':0,
+               'population':80,
+               'food':100,
+               'antimatter':385,
+               'money':15000,
+               'krellmetal':67},
 }
 
 def pairs(t):
@@ -39,12 +109,32 @@ def parse_coords(s):
   if m: return map(float, m.groups())
   return None
 
+def ship_cost(manifest):
+  cost = {'money': 0,
+          'steel': 0,
+          'population': 0,
+          'unobtanium': 0,
+          'food': 0,
+          'antimatter': 0,
+          'krellmetal': 0}
+  for type,quantity in manifest.items():
+    cost['money'] += quantity * ALL_SHIPS[type]['money']
+    cost['steel'] += quantity * ALL_SHIPS[type]['steel']
+    cost['population'] += quantity * ALL_SHIPS[type]['population']
+    cost['unobtanium'] += quantity * ALL_SHIPS[type]['unobtanium']
+    cost['food'] += quantity * ALL_SHIPS[type]['food']
+    cost['antimatter'] += quantity * ALL_SHIPS[type]['antimatter']
+    cost['krellmetal'] += quantity * ALL_SHIPS[type]['krellmetal']
+  return cost
+
+
 class Galaxy:
   class Fleet:
-    def __init__(self, galaxy, fleetid, coords):
+    def __init__(self, galaxy, fleetid, coords, at=False):
       self.galaxy = galaxy
       self.fleetid = int(fleetid)
       self.coords = coords
+      self.at_planet = at
       self._loaded = False
     def __repr__(self):
       return "<Fleet #%d%s @ (%.1f,%.1f)>" % (self.fleetid, 
@@ -63,11 +153,35 @@ class Galaxy:
         self.speed = float(soup.find(text="Current Speed:").findNext('td').string)
       except: self.speed = 0
       self.ships = dict()
-      for k,v in pairs(soup('h3')[0].findAllNext('td')):
-        shiptype = re.match(r'[a-z]+', k.string).group()
-        if not shiptype in ALL_SHIPS.keys(): continue
-        self.ships[shiptype] = int(v.string)
+      try:
+        for k,v in pairs(soup('h3')[0].findAllNext('td')):
+          shiptype = re.match(r'[a-z]+', k.string).group()
+          if not shiptype in ALL_SHIPS.keys(): continue
+          self.ships[shiptype] = int(v.string)
+      except IndexError:
+        pass  # emply fleet
       self._loaded = True
+    def move_to_planet(self, planet):
+      formdata = {}
+      formdata['planet' ] = planet.planetid
+      req = self.galaxy.opener.open(URL_MOVE_TO_PLANET % self.fleetid,
+                                    urllib.urlencode(formdata))
+      response = req.read()
+      success = 'Destination Changed' in response
+      if not success:
+        print response
+      return success
+    def at(self, planet):
+      return (self.at_planet and 
+              math.sqrt(math.pow(self.coords[0]-planet.location[0], 2) +
+                        math.pow(self.coords[1]-planet.location[1], 2)) < 0.1)
+    def scrap(self):
+      if not self.at_planet:
+        return False
+      req = self.galaxy.opener.open(URL_SCRAP_FLEET % self.fleetid)
+      response = req.read()
+      fleet = None
+      return 'Fleet Scrapped' in response
 
   class Planet:
     def __init__(self, galaxy, planetid, name):
@@ -117,26 +231,9 @@ class Galaxy:
         sys.stderr.write("loaded alien planet\n")
 
       self._loaded = True
-    def ship_cost(self, manifest):
-      cost = {'money': 0,
-              'steel': 0,
-              'population': 0,
-              'unobtanium': 0,
-              'food': 0,
-              'antimatter': 0,
-              'krellmetal': 0}
-      for type,quantity in manifest.items():
-        cost['money'] += quantity * ALL_SHIPS[type]['money']
-        cost['steel'] += quantity * ALL_SHIPS[type]['steel']
-        cost['population'] += quantity * ALL_SHIPS[type]['population']
-        cost['unobtanium'] += quantity * ALL_SHIPS[type]['unobtanium']
-        cost['food'] += quantity * ALL_SHIPS[type]['food']
-        cost['antimatter'] += quantity * ALL_SHIPS[type]['antimatter']
-        cost['krellmetal'] += quantity * ALL_SHIPS[type]['krellmetal']
-      return cost
     def can_build(self, manifest):
       self.load()
-      cost = self.ship_cost(manifest)
+      cost = ship_cost(manifest)
       return (self.money >= cost['money'] and 
               self.steel[0] >= cost['steel'] and 
               self.population >= cost['population'] and 
@@ -152,11 +249,16 @@ class Galaxy:
         for type,quantity in manifest.items():
           formdata['num-%s' % type] = quantity
         req = self.galaxy.opener.open(URL_BUILD_FLEET % self.planetid,
-                               urllib.urlencode(formdata))
+                               urllib.urlencode(formdata))        
         response = req.read()
+        fleet = None
         if 'Fleet Built' in response: 
+          j = json.loads(response)
+          fleet = Galaxy.Fleet(self.galaxy,
+                               j['newfleet']['i'],
+                               [j['newfleet']['x'], j['newfleet']['y']])
           if self._loaded:
-            cost = self.ship_cost(manifest)
+            cost = ship_cost(manifest)
             self.money -= cost['money']
             self.steel[0] -= cost['steel']
             self.population -= cost['population']
@@ -167,14 +269,31 @@ class Galaxy:
           if interactive:
             js = 'javascript:handleserverresponse(%s);' % response
             subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
-        else:
-          print response
+      else:
+        print response
+      return fleet
+    def scrap_fleet(self, fleet):
+      value = ship_cost(fleet.ships)
+      if fleet.scrap() and self._loaded:
+        self.money += value['money']
+        self.steel[0] += value['steel']
+        self.population += value['population']
+        self.unobtanium[0] += value['unobtanium']
+        self.food[0] += value['food']
+        self.antimatter[0] += value['antimatter']
+        self.krellmetal[0] += value['krellmetal']
+        return value
+      else:
+        return None
+
     def view(self):
       self.load()
       js = 'javascript:gm.centermap(%d, %d);' % (self.location[0],
                                                  self.location[1])
       subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
-      
+    def distance_to(self, other):
+      return math.sqrt(math.pow(self.location[0]-other.location[0], 2) +
+                       math.pow(self.location[1]-other.location[1], 2))
                                            
   def __init__(self):
     self._planets = None
@@ -254,7 +373,8 @@ class Galaxy:
 #class=\"rowheader\">Att.</th><th class=\"rowheader\">Def.</th>\n
           coords = parse_coords(
             re.search(r'gm.centermap(\([0-9.,]+\))', str(row)).group(1))
-          fleets.append(Galaxy.Fleet(self, fleetid, coords))
+          at_planet = bool(re.search(r'\'scrapfleet\':[0-9]+', str(row)))
+          fleets.append(Galaxy.Fleet(self, fleetid, coords, at=at_planet))
         i += 1
       except urllib2.HTTPError:
         break
