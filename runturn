@@ -1,0 +1,58 @@
+#!/usr/bin/env python
+
+from optparse import OptionParser
+import sys
+
+import game
+from buildarcs import buildarcs
+from buildmerchantmen import buildmerchantmen
+from collectsteel import collectsteel
+from scrapidle import scrapidle
+
+
+def main():
+  parser = OptionParser()
+  parser.add_option("-U", "--username", dest="username",
+                    help="username of login")
+  parser.add_option("-P", "--password", dest="password",
+                    help="password for login")
+  parser.add_option("-t", "--type", dest="type",
+                    help="type of ship to build", default="frigates")
+  parser.add_option("-q", "--quick",
+                    action="store_true", dest="quick", default=False,
+                    help="skip interactive elements: full auto.")
+  parser.add_option("-s", "--skip_level", dest="skip_level",
+                    help="maximum society level to initiate a skip arc",
+                    default=20,
+                    type="int")
+  parser.add_option("-r", "--radius", dest="radius",
+                    help="maximum distance from sink to initiate a build",
+                    default=5.0,
+                    type="float")
+  (options, args) = parser.parse_args()
+  
+  sink_opt = args[0]
+
+  g=game.Galaxy()
+  if options.username and options.password:
+    # explicit login
+    g.login(options.username, options.password, force=True)
+  else:
+    # try to pick up stored credentials
+    g.login("", "")
+
+  try:
+    sink = g.get_planet(int(sink_opt))
+  except ValueError:
+    sink = g.find_planet(sink_opt)
+  sink.load()
+  print "using planet %d with name %s" % (sink.planetid, sink.name)
+
+  if not options.quick:
+    buildarcs(g, options.skip_level)
+  buildmerchantmen(g, options.skip_level)
+  collectsteel(g, sink, options.radius, options.type)
+  scrapidle(g, sink, options.type)
+
+if __name__ == "__main__":
+    main()

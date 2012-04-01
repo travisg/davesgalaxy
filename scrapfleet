@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import game
 from optparse import OptionParser
@@ -11,17 +11,16 @@ parser.add_option("-P", "--password", dest="password",
                   help="password for login")
 (options, args) = parser.parse_args()
 
-planetid = args[0]
+fleetid = args[0]
 
 g = game.Galaxy()
 
-try:
-  planet = game.Galaxy.Planet(g, int(planetid), 'unknown')
-except ValueError:
-  planet = g.find_planet(planetid)
-  print "using planet %d with name %s" % (planet.planetid, planet.name)
+if options.username and options.password:
+  # explicit login
+  g.login(options.username, options.password, force=True)
+else:
+  # try to pick up stored credentials
+  g.login("", "")
 
-planet.load()
-print planet.location
-print planet.name
-planet.view()
+fleet = game.Galaxy.Fleet(g, int(fleetid), [0.0, 0.0], True)
+fleet.scrap()

@@ -1,12 +1,15 @@
 import cookielib
-import math
-import urllib
-import urllib2
 import json
+import math
+import os
+import pickle
 import re
 import subprocess
 import sys
+import time
 import types
+import urllib
+import urllib2
 from itertools import izip
 from BeautifulSoup import BeautifulSoup
 
@@ -20,6 +23,11 @@ URL_FLEET_DETAIL = HOST + "/fleets/%d/info/"
 URL_MOVE_TO_PLANET = HOST + "/fleets/%d/movetoplanet/"
 URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
 URL_SCRAP_FLEET = HOST + "/fleets/%d/scrap/"
+
+CACHE_STALE_TIME = 5 * 60 * 60
+PLANET_CACHE_FILE = 'planet.dat'
+FLEET_CACHE_FILE = 'fleet.dat'
+CREDENTIAL_CACHE_FILE = 'login.dat'
 
 ALL_SHIPS = {
   'superbattleships': {'steel':8000,
@@ -150,7 +158,8 @@ class Galaxy:
       if not self.destination: self.destination = dest
       self.disposition = soup.find(text="Disposition:").findNext('td').string
       try:
-        self.speed = float(soup.find(text="Current Speed:").findNext('td').string)
+        self.speed = float(soup.find(text="Current Speed:")
+                           .findNext('td').string)
       except: self.speed = 0
       self.ships = dict()
       try:
@@ -182,7 +191,7 @@ class Galaxy:
       response = req.read()
       fleet = None
       return 'Fleet Scrapped' in response
-
+  
   class Planet:
     def __init__(self, galaxy, planetid, name):
       self.galaxy = galaxy
@@ -229,7 +238,7 @@ class Galaxy:
         self.krellmetal=map(int, data[i:i+3]) ; i+=3
       except IndexError:
         sys.stderr.write("loaded alien planet\n")
-
+  
       self._loaded = True
     def can_build(self, manifest):
       self.load()
@@ -285,7 +294,6 @@ class Galaxy:
         return value
       else:
         return None
-
     def view(self):
       self.load()
       js = 'javascript:gm.centermap(%d, %d);' % (self.location[0],
@@ -294,14 +302,14 @@ class Galaxy:
     def distance_to(self, other):
       return math.sqrt(math.pow(self.location[0]-other.location[0], 2) +
                        math.pow(self.location[1]-other.location[1], 2))
-                                           
+
   def __init__(self):
     self._planets = None
     self._fleets = None
     self._logged_in = False
     self.jar = cookielib.LWPCookieJar()
     try:
-      self.jar.load("login.dat")
+      self.jar.load(CREDENTIAL_CACHE_FILE)
       self._logged_in = True
     except:
       pass
@@ -310,7 +318,7 @@ class Galaxy:
     if force or not self._logged_in:
       self.opener.open(URL_LOGIN,
         urllib.urlencode(dict(usernamexor=u, passwordxor=p)))
-      self.jar.save("login.dat")
+      self.jar.save(CREDENTIAL_CACHE_FILE)
       self._logged_in = True
     else:
       sys.stderr.write("using stored credentials\n")
@@ -327,9 +335,44 @@ class Galaxy:
         return p
     return None
     
+  def load_all_planets(self):
+    all_loaded = True
+    for p in self.planets:
+      all_loaded = p._loaded and all_loaded
+    if not all_loaded:
+      print "loading all planets"
+      for p in self.planets:
+        p.load()
+      self.write_planet_cache()
+    return None
+    
+  def load_all_fleets(self):
+    all_loaded = True
+    for f in self.fleets:
+      all_loaded = f._loaded and all_loaded
+    if not all_loaded:
+      print "loading all fleets"
+      for f in self.fleets:
+        f.load()
+      self.write_fleet_cache()
+    return None
+    
+  def my_planets_near(self, pivot):
+    self.load_all_planets()
+    survey = []
+    for p in self.planets:
+      if p != pivot:
+        survey.append({'planet': p, 'distance': pivot.distance_to(p)})
+    survey.sort(lambda a, b: cmp(a['distance'], b['distance']))
+    return survey
+
   @property
   def planets(self):
     if self._planets: return self._planets
+    
+    self._planets = self.load_cache(PLANET_CACHE_FILE)
+    if self._planets: return self._planets
+    
     i=1
     planets = []
     while True:
@@ -346,15 +389,19 @@ class Galaxy:
 # <th class="rowheader">Tax Rate</th>
 # <th class="rowheader">Tariff Rate</th>
 
+          # TODO extract coords from planet list to save some loads
           planets.append(Galaxy.Planet(self, planetid, cells[4].string))
         i += 1
       except urllib2.HTTPError:
         break
     self._planets = planets
+    self.write_planet_cache()
     return planets
 
   @property
   def fleets(self):
+    if self._fleets: return self._fleets
+    self._fleets = self.load_cache(FLEET_CACHE_FILE)
     if self._fleets: return self._fleets
     i=1
     fleets = []
@@ -380,3 +427,37 @@ class Galaxy:
         break
     self._fleets = fleets
     return fleets
+    
+  def write_planet_cache(self):
+    # TODO: planets fail to pickle due to a lock object, write a reduce
+    self.write_cache(PLANET_CACHE_FILE, self._planets)
+    return None
+
+  def write_fleet_cache(self):
+    self.write_cache(FLEET_CACHE_FILE, self._fleets)
+    return None
+
+  def write_cache(self, filename, data):
+    try:
+      cache_file = open(filename, 'w')
+      pickle.dump(data, cache_file)
+      cache_file.close()
+    except:
+      pass
+    return None
+
+  def load_cache(self, filename):
+    cache_data = None
+    try:
+      if (time.time() - os.stat(filename).st_mtime) < CACHE_STALE_TIME:
+        cache_file = open(filename, 'r')
+        cache_data = pickle.load(cache_file)
+        cache_file.close()
+        print "loaded cached data from %s" % filename
+      else:
+        print "cached data in %s is stale" % filename
+        pass
+    except:
+        print "cache file %s is missing" % filename
+        pass
+    return cache_data
