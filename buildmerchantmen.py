@@ -30,7 +30,7 @@ def main():
     g.login(options.username, options.password, force=True)
   else:
     # try to pick up stored credentials
-    g.login("", "")
+    g.login()
 
   buildmerchantmen(g, options.skip_level)
 
@@ -41,10 +41,6 @@ def buildmerchantmen(g, level):
   arc = {'arcs': 1}
   arc_cost = game.ship_cost(arc)
 
-  # we need them all loaded before hand so we can build the neighbor list
-  # TOOD load the coords from the planet list
-  g.load_all_planets()
-  
   print 'Looking for planets younger than %d to build merchantmen.' % level
   print 'Name, ID, Society, Money, Antimatter, Steel'
   for p in g.planets:

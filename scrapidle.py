@@ -27,7 +27,7 @@ def main():
     g.login(options.username, options.password, force=True)
   else:
     # try to pick up stored credentials
-    g.login("", "")
+    g.login()
   
   sink_opt = args[0]
   try:
@@ -40,8 +40,6 @@ def main():
   scrapidle(g, sink, options.type)
 
 def scrapidle(g, sink, type):
-  g.load_all_fleets()
-
   steel = sink.steel[0]
   print 'Looking for mule fleets of type %s at %s.' % (
     type, sink.name)

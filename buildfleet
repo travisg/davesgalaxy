@@ -27,7 +27,7 @@ if options.username and options.password:
   g.login(options.username, options.password, force=True)
 else:
   # try to pick up stored credentials
-  g.login("", "")
+  g.login()
 
 manifest = {}
 for pr in tobuild:
@@ -42,7 +42,7 @@ for pr in tobuild:
     sys.exit(1)
 
 try:
-  planet = game.Galaxy.Planet(g, int(planetid), 'unknown')
+  planet = game.Planet(g, int(planetid), 'unknown', [])
 except ValueError:
   planet = g.find_planet(planetid)
   print "using planet %d with name %s" % (planet.planetid, planet.name)

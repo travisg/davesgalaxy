@@ -17,7 +17,7 @@ if options.username and options.password:
   g.login(options.username, options.password, force=True)
 else:
   # try to pick up stored credentials
-  g.login("", "")
+  g.login()
 
 print 'Name, ID, Society, Population, Money, Food, Steel, Tax, Tarif, Distance'
 for p in g.planets:

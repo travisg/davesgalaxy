@@ -39,7 +39,7 @@ def main():
     g.login(options.username, options.password, force=True)
   else:
     # try to pick up stored credentials
-    g.login("", "")
+    g.login()
 
   try:
     sink = g.get_planet(int(sink_opt))
@@ -53,6 +53,8 @@ def main():
   buildmerchantmen(g, options.skip_level)
   collectsteel(g, sink, options.radius, options.type)
   scrapidle(g, sink, options.type)
+  g.write_planet_cache()
+  g.write_fleet_cache()
 
 if __name__ == "__main__":
     main()

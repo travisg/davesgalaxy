@@ -18,7 +18,7 @@ if options.username and options.password:
   g.login(options.username, options.password, force=True)
 else:
   # try to pick up stored credentials
-  g.login("", "")
+  g.login()
 
 def dictstr(d):
   return "(" + " ".join(

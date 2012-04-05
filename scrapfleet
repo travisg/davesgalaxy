@@ -20,7 +20,7 @@ if options.username and options.password:
   g.login(options.username, options.password, force=True)
 else:
   # try to pick up stored credentials
-  g.login("", "")
+  g.login()
 
-fleet = game.Galaxy.Fleet(g, int(fleetid), [0.0, 0.0], True)
+fleet = game.Fleet(g, int(fleetid), [0.0, 0.0], True)
 fleet.scrap()

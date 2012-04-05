@@ -136,21 +136,143 @@ def ship_cost(manifest):
   return cost
 
 
-class Galaxy:
-  class Fleet:
-    def __init__(self, galaxy, fleetid, coords, at=False):
-      self.galaxy = galaxy
-      self.fleetid = int(fleetid)
-      self.coords = coords
-      self.at_planet = at
-      self._loaded = False
-    def __repr__(self):
-      return "<Fleet #%d%s @ (%.1f,%.1f)>" % (self.fleetid, 
-        (' (%s, %d ships)' % (self.disposition, len(self.ships))) \
-          if self._loaded else '',
-        self.coords[0], self.coords[1])
-    def load(self):
-      if self._loaded: return
+class Planet:
+  def __init__(self, galaxy, planetid, name='unknown', location=None):
+    self.galaxy = galaxy
+    self.planetid = int(planetid)
+    self.name = name
+    self.location = location
+    self._loaded = False
+  def __repr__(self):
+    return "<Planet #%d \"%s\">" % (self.planetid, self.name)
+  def __getstate__(self): 
+    return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
+  def load(self):
+    if self._loaded: return
+    req = self.galaxy.opener.open(URL_PLANET_DETAIL % self.planetid)
+    soup = BeautifulSoup(json.load(req)['tab'])
+    self.soup = soup
+
+    self.society = int(soup('div',{'class':'info1'})[0]('div')[2].string)
+    data = [x.string.strip() for x in soup('td',{'class':'planetinfo2'})]
+    i = 0
+    if self.name == 'unknown':
+      self.name = data[i]
+    i+=1
+    self.owner=data[i]; i+=1
+    if self.location == None:
+      self.location=map(float, re.findall(r'[0-9.]+', data[i])); 
+    i+=1
+    if soup.find(text='Distance to Capital:'):
+      self.distance=float(data[i]) ; i+=1
+    else:
+      self.distance=0.0
+    if soup.find(text='Income Tax Rate:'):
+      self.tax=float(data[i]) ; i+=1
+    else:
+      self.tax=0.0
+    if soup.find(text='Open Ship Yard:'): i+=1
+    if soup.find(text='Trades Rare Commodities:'): i+=1
+    if soup.find(text='Open Trading:'): i+=1
+    if soup.find(text='Tariff Rate:'):
+      self.tarif=float(data[i]) ; i+=1
+    else:
+      self.tarif=0.0
+    try:
+      self.population=int(data[i]) ; i+=1
+      self.money=int(data[i].split()[0]) ; i+=1
+      self.steel=map(int, data[i:i+3]) ; i+=3
+      self.unobtanium=map(int, data[i:i+3]) ; i+=3
+      self.food=map(int, data[i:i+3]) ; i+=3
+      self.antimatter=map(int, data[i:i+3]) ; i+=3
+      self.consumergoods=map(int, data[i:i+3]) ; i+=3
+      self.hydrocarbon=map(int, data[i:i+3]) ; i+=3
+      self.krellmetal=map(int, data[i:i+3]) ; i+=3
+    except IndexError:
+      sys.stderr.write("loaded alien planet\n")
+
+    self._loaded = True
+  def can_build(self, manifest):
+    self.load()
+    cost = ship_cost(manifest)
+    return (self.money >= cost['money'] and 
+            self.steel[0] >= cost['steel'] and 
+            self.population >= cost['population'] and 
+            self.unobtanium[0] >= cost['unobtanium'] and 
+            self.food[0] >= cost['food'] and 
+            self.antimatter[0] >= cost['antimatter'] and 
+            self.krellmetal[0] >= cost['krellmetal'])
+  def build_fleet(self, manifest, interactive=False, skip_check=False):
+    if skip_check or self.can_build(manifest):
+      formdata = {}
+      formdata['submit-build-%d' % self.planetid] = 1
+      formdata['submit-build-another-%d' % self.planetid] =1
+      for type,quantity in manifest.items():
+        formdata['num-%s' % type] = quantity
+      req = self.galaxy.opener.open(URL_BUILD_FLEET % self.planetid,
+                             urllib.urlencode(formdata))        
+      response = req.read()
+      fleet = None
+      if 'Fleet Built' in response: 
+        j = json.loads(response)
+        fleet = Fleet(self.galaxy,
+                      j['newfleet']['i'],
+                      [j['newfleet']['x'], j['newfleet']['y']])
+        if self._loaded:
+          cost = ship_cost(manifest)
+          self.money -= cost['money']
+          self.steel[0] -= cost['steel']
+          self.population -= cost['population']
+          self.unobtanium[0] -= cost['unobtanium']
+          self.food[0] -= cost['food']
+          self.antimatter[0] -= cost['antimatter']
+          self.krellmetal[0] -= cost['krellmetal']
+        if interactive:
+          js = 'javascript:handleserverresponse(%s);' % response
+          subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
+    else:
+      print response
+    return fleet
+  def scrap_fleet(self, fleet):
+    value = ship_cost(fleet.ships)
+    if fleet.scrap() and self._loaded:
+      self.money += value['money']
+      self.steel[0] += value['steel']
+      self.population += value['population']
+      self.unobtanium[0] += value['unobtanium']
+      self.food[0] += value['food']
+      self.antimatter[0] += value['antimatter']
+      self.krellmetal[0] += value['krellmetal']
+      return value
+    else:
+      return None
+  def view(self):
+    self.load()
+    js = 'javascript:gm.centermap(%d, %d);' % (self.location[0],
+                                               self.location[1])
+    subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
+  def distance_to(self, other):
+    return math.sqrt(math.pow(self.location[0]-other.location[0], 2) +
+                     math.pow(self.location[1]-other.location[1], 2))
+
+
+class Fleet:
+  def __init__(self, galaxy, fleetid, coords, at=False):
+    self.galaxy = galaxy
+    self.fleetid = int(fleetid)
+    self.coords = coords
+    self.at_planet = at
+    self._loaded = False
+  def __repr__(self):
+    return "<Fleet #%d%s @ (%.1f,%.1f)>" % (self.fleetid, 
+      (' (%s, %d ships)' % (self.disposition, len(self.ships))) \
+        if self._loaded else '',
+      self.coords[0], self.coords[1])
+  def __getstate__(self): 
+    return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
+  def load(self):
+    if self._loaded: return
+    try:
       req = self.galaxy.opener.open(URL_FLEET_DETAIL % self.fleetid)
       soup = self.soup = BeautifulSoup(json.load(req)['pagedata'])
       dest = soup.find(text="Destination:").findNext('td').string
@@ -169,140 +291,37 @@ class Galaxy:
           self.ships[shiptype] = int(v.string)
       except IndexError:
         pass  # emply fleet
-      self._loaded = True
-    def move_to_planet(self, planet):
-      formdata = {}
-      formdata['planet' ] = planet.planetid
-      req = self.galaxy.opener.open(URL_MOVE_TO_PLANET % self.fleetid,
-                                    urllib.urlencode(formdata))
-      response = req.read()
-      success = 'Destination Changed' in response
-      if not success:
-        print response
-      return success
-    def at(self, planet):
-      return (self.at_planet and 
-              math.sqrt(math.pow(self.coords[0]-planet.location[0], 2) +
-                        math.pow(self.coords[1]-planet.location[1], 2)) < 0.1)
-    def scrap(self):
-      if not self.at_planet:
-        return False
-      req = self.galaxy.opener.open(URL_SCRAP_FLEET % self.fleetid)
-      response = req.read()
-      fleet = None
-      return 'Fleet Scrapped' in response
-  
-  class Planet:
-    def __init__(self, galaxy, planetid, name):
-      self.galaxy = galaxy
-      self.planetid = int(planetid)
-      self.name = name
-      self._loaded = False
-    def __repr__(self):
-      return "<Planet #%d \"%s\">" % (self.planetid, self.name)
-    def load(self):
-      if self._loaded: return
-      req = self.galaxy.opener.open(URL_PLANET_DETAIL % self.planetid)
-      soup = BeautifulSoup(json.load(req)['tab'])
-      self.soup = soup
+    except IndexError:
+      # stale fleet
+      self.destination = None
+      self.speed = 0.0
+      self.ships = dict()
+    self._loaded = True
 
-      self.society = int(soup('div',{'class':'info1'})[0]('div')[2].string)
-      data = [x.string.strip() for x in soup('td',{'class':'planetinfo2'})]
-      i = 1
-      self.owner=data[i]; i+=1
-      self.location=map(float, re.findall(r'[0-9.]+', data[i])); i+=1
-      if soup.find(text='Distance to Capital:'):
-        self.distance=float(data[i]) ; i+=1
-      else:
-        self.distance=0.0
-      if soup.find(text='Income Tax Rate:'):
-        self.tax=float(data[i]) ; i+=1
-      else:
-        self.tax=0.0
-      if soup.find(text='Open Ship Yard:'): i+=1
-      if soup.find(text='Trades Rare Commodities:'): i+=1
-      if soup.find(text='Open Trading:'): i+=1
-      if soup.find(text='Tariff Rate:'):
-        self.tarif=float(data[i]) ; i+=1
-      else:
-        self.tarif=0.0
-      try:
-        self.population=int(data[i]) ; i+=1
-        self.money=int(data[i].split()[0]) ; i+=1
-        self.steel=map(int, data[i:i+3]) ; i+=3
-        self.unobtanium=map(int, data[i:i+3]) ; i+=3
-        self.food=map(int, data[i:i+3]) ; i+=3
-        self.antimatter=map(int, data[i:i+3]) ; i+=3
-        self.consumergoods=map(int, data[i:i+3]) ; i+=3
-        self.hydrocarbon=map(int, data[i:i+3]) ; i+=3
-        self.krellmetal=map(int, data[i:i+3]) ; i+=3
-      except IndexError:
-        sys.stderr.write("loaded alien planet\n")
-  
-      self._loaded = True
-    def can_build(self, manifest):
-      self.load()
-      cost = ship_cost(manifest)
-      return (self.money >= cost['money'] and 
-              self.steel[0] >= cost['steel'] and 
-              self.population >= cost['population'] and 
-              self.unobtanium[0] >= cost['unobtanium'] and 
-              self.food[0] >= cost['food'] and 
-              self.antimatter[0] >= cost['antimatter'] and 
-              self.krellmetal[0] >= cost['krellmetal'])
-    def build_fleet(self, manifest, interactive=False, skip_check=False):
-      if skip_check or self.can_build(manifest):
-        formdata = {}
-        formdata['submit-build-%d' % self.planetid] = 1
-        formdata['submit-build-another-%d' % self.planetid] =1
-        for type,quantity in manifest.items():
-          formdata['num-%s' % type] = quantity
-        req = self.galaxy.opener.open(URL_BUILD_FLEET % self.planetid,
-                               urllib.urlencode(formdata))        
-        response = req.read()
-        fleet = None
-        if 'Fleet Built' in response: 
-          j = json.loads(response)
-          fleet = Galaxy.Fleet(self.galaxy,
-                               j['newfleet']['i'],
-                               [j['newfleet']['x'], j['newfleet']['y']])
-          if self._loaded:
-            cost = ship_cost(manifest)
-            self.money -= cost['money']
-            self.steel[0] -= cost['steel']
-            self.population -= cost['population']
-            self.unobtanium[0] -= cost['unobtanium']
-            self.food[0] -= cost['food']
-            self.antimatter[0] -= cost['antimatter']
-            self.krellmetal[0] -= cost['krellmetal']
-          if interactive:
-            js = 'javascript:handleserverresponse(%s);' % response
-            subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
-      else:
-        print response
-      return fleet
-    def scrap_fleet(self, fleet):
-      value = ship_cost(fleet.ships)
-      if fleet.scrap() and self._loaded:
-        self.money += value['money']
-        self.steel[0] += value['steel']
-        self.population += value['population']
-        self.unobtanium[0] += value['unobtanium']
-        self.food[0] += value['food']
-        self.antimatter[0] += value['antimatter']
-        self.krellmetal[0] += value['krellmetal']
-        return value
-      else:
-        return None
-    def view(self):
-      self.load()
-      js = 'javascript:gm.centermap(%d, %d);' % (self.location[0],
-                                                 self.location[1])
-      subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
-    def distance_to(self, other):
-      return math.sqrt(math.pow(self.location[0]-other.location[0], 2) +
-                       math.pow(self.location[1]-other.location[1], 2))
+  def move_to_planet(self, planet):
+    formdata = {}
+    formdata['planet' ] = planet.planetid
+    req = self.galaxy.opener.open(URL_MOVE_TO_PLANET % self.fleetid,
+                                  urllib.urlencode(formdata))
+    response = req.read()
+    success = 'Destination Changed' in response
+    if not success:
+      print response
+    return success
+  def at(self, planet):
+    return (self.at_planet and 
+            math.sqrt(math.pow(self.coords[0]-planet.location[0], 2) +
+                      math.pow(self.coords[1]-planet.location[1], 2)) < 0.1)
+  def scrap(self):
+    if not self.at_planet:
+      return False
+    req = self.galaxy.opener.open(URL_SCRAP_FLEET % self.fleetid)
+    response = req.read()
+    fleet = None
+    return 'Fleet Scrapped' in response
 
+
+class Galaxy:
   def __init__(self):
     self._planets = None
     self._fleets = None
@@ -314,7 +333,7 @@ class Galaxy:
     except:
       pass
     self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.jar))
-  def login(self, u, p, force=False):
+  def login(self, u='', p='', force=False):
     if force or not self._logged_in:
       self.opener.open(URL_LOGIN,
         urllib.urlencode(dict(usernamexor=u, passwordxor=p)))
@@ -343,7 +362,6 @@ class Galaxy:
       print "loading all planets"
       for p in self.planets:
         p.load()
-      self.write_planet_cache()
     return None
     
   def load_all_fleets(self):
@@ -358,7 +376,6 @@ class Galaxy:
     return None
     
   def my_planets_near(self, pivot):
-    self.load_all_planets()
     survey = []
     for p in self.planets:
       if p != pivot:
@@ -370,7 +387,7 @@ class Galaxy:
   def planets(self):
     if self._planets: return self._planets
     
-    self._planets = self.load_cache(PLANET_CACHE_FILE)
+    self.load_planet_cache()
     if self._planets: return self._planets
     
     i=1
@@ -383,14 +400,18 @@ class Galaxy:
           cells=row('td')
           planetid=re.search(r'/planets/([0-9]*)/',
                              str(row('td')[0])).group(1)
+          name = cells[4].string
+          coords = re.search(r'\(([0-9.]+),([0-9.]+)\)', str(row('td')[9]))
+          location = map(lambda x: float(x), coords.groups())
+
 # </th><th class="rowheader">Name</th>
 # <th class="rowheader">Society</th>
 # <th class="rowheader">Population</th>
 # <th class="rowheader">Tax Rate</th>
 # <th class="rowheader">Tariff Rate</th>
+#<td>\n <img src=\"/site_media/center.png\" \n class=\"noborder\"\n onclick=\"gm.centermap(1636.382371,1472.795540);\"\n title=\"center on planet\"/>
 
-          # TODO extract coords from planet list to save some loads
-          planets.append(Galaxy.Planet(self, planetid, cells[4].string))
+          planets.append(Planet(self, planetid, name, location))
         i += 1
       except urllib2.HTTPError:
         break
@@ -401,8 +422,10 @@ class Galaxy:
   @property
   def fleets(self):
     if self._fleets: return self._fleets
-    self._fleets = self.load_cache(FLEET_CACHE_FILE)
+
+    self.load_fleet_cache()
     if self._fleets: return self._fleets
+
     i=1
     fleets = []
     while True:
@@ -421,11 +444,12 @@ class Galaxy:
           coords = parse_coords(
             re.search(r'gm.centermap(\([0-9.,]+\))', str(row)).group(1))
           at_planet = bool(re.search(r'\'scrapfleet\':[0-9]+', str(row)))
-          fleets.append(Galaxy.Fleet(self, fleetid, coords, at=at_planet))
+          fleets.append(Fleet(self, fleetid, coords, at=at_planet))
         i += 1
       except urllib2.HTTPError:
         break
     self._fleets = fleets
+    self.write_fleet_cache()
     return fleets
     
   def write_planet_cache(self):
@@ -433,8 +457,16 @@ class Galaxy:
     self.write_cache(PLANET_CACHE_FILE, self._planets)
     return None
 
+  def load_planet_cache(self):
+    self._planets = self.load_cache(PLANET_CACHE_FILE )
+    return None
+
   def write_fleet_cache(self):
     self.write_cache(FLEET_CACHE_FILE, self._fleets)
+    return None
+
+  def load_fleet_cache(self):
+    self._fleets = self.load_cache(FLEET_CACHE_FILE )
     return None
 
   def write_cache(self, filename, data):
@@ -448,16 +480,14 @@ class Galaxy:
 
   def load_cache(self, filename):
     cache_data = None
-    try:
-      if (time.time() - os.stat(filename).st_mtime) < CACHE_STALE_TIME:
-        cache_file = open(filename, 'r')
-        cache_data = pickle.load(cache_file)
-        cache_file.close()
-        print "loaded cached data from %s" % filename
-      else:
-        print "cached data in %s is stale" % filename
-        pass
-    except:
-        print "cache file %s is missing" % filename
-        pass
+    if (time.time() - os.stat(filename).st_mtime) < CACHE_STALE_TIME:
+      cache_file = open(filename, 'r')
+      cache_data = pickle.load(cache_file)
+      cache_file.close()
+      for item in cache_data:
+        item.galaxy = self
+      print "loaded cached data from %s" % filename
+    else:
+      print "cached data in %s is stale" % filename
+      pass
     return cache_data

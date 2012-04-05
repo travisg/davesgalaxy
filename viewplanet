@@ -16,12 +16,12 @@ planetid = args[0]
 g = game.Galaxy()
 
 try:
-  planet = game.Galaxy.Planet(g, int(planetid), 'unknown')
+  planet = game.Planet(g, int(planetid))
+  planet.load()
 except ValueError:
   planet = g.find_planet(planetid)
   print "using planet %d with name %s" % (planet.planetid, planet.name)
 
-planet.load()
 print planet.location
 print planet.name
 planet.view()

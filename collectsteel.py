@@ -27,7 +27,7 @@ def main():
     g.login(options.username, options.password, force=True)
   else:
     # try to pick up stored credentials
-    g.login("", "")
+    g.login()
 
   try:
     sink = g.get_planet(int(sink_opt))

@@ -30,7 +30,7 @@ def main():
     g.login(options.username, options.password, force=True)
   else:
     # try to pick up stored credentials
-    g.login("", "")
+    g.login()
 
   buildarcs(g, options.skip_level)
 
