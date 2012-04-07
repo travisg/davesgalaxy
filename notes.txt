@@ -12,20 +12,30 @@
 
 #submit-build-PLANETID=1&submit-build-another-PLANETID=1&num-superbattleships=0&num-bulkfreighters=0&num-subspacers=0&num-arcs=0&num-blackbirds=0&num-merchantmen=0&num-scouts=2&num-battleships=0&num-destroyers=0&num-frigates=0&num-cruisers=0
 
+1662 1470 332295/333295
+1662 1475 332296/333296
+1667 1475 334295/334296
+1672 1475 335295/335296
+   0    0 0/1/1000/1001
+1500 1500 299299/299300/300299/300300
+
 built 40 bulkfreighters at Eta Phoensenorg
 built 40 bulkfreighters at Zeta Eridani Minor
 built 40 bulkfreighters at Lambda Pixis Borealis
 built 40 bulkfreighters at The Ranch
+built 40 bulkfreighters at Zeta Arsetes
+built 40 bulkfreighters at Beta Delphtes
+built 40 bulkfreighters at Omicron Canis Cygni
 
-built 15 bulkfreighters at Upsilon Phoensetooine 0
 built 15 bulkfreighters at Rho Pixis Cygni
-built 17 bulkfreighters at Zeta Arsetes
-built 18 bulkfreighters at Lambda Ophiuchiax
-built 20 bulkfreighters at Chi Cecilae Pavonis
-built 21 bulkfreighters at Nu Eridani Borealis
 built 24 bulkfreighters at Lambda Indiinus
-built 24 bulkfreighters at Chi Octanstes
-built 24 bulkfreighters at Omega Eririus
-built 26 bulkfreighters at Beta Delphtes
-built 28 bulkfreighters at Omicron Canis Cygni
-built 34 bulkfreighters at Zeta Androbae
+built 26 bulkfreighters at Upsilon Phoensetooine 0
+built 32 bulkfreighters at Chi Cecilae Pavonis
+built 33 bulkfreighters at Nu Eridani Borealis
+built 34 bulkfreighters at Lambda Ophiuchiax
+built 36 bulkfreighters at Chi Octanstes
+built 36 bulkfreighters at Omega Eririus
+built 39 bulkfreighters at Zeta Androbae
+
+built {'superbattleships': 16914}
+built {'cruisers': 7728, 'arcs': 7728}

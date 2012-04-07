@@ -12,6 +12,9 @@ parser.add_option("-P", "--password", dest="password",
 parser.add_option("-q", "--quick",
                   action="store_true", dest="quick", default=False,
                   help="only issue the build request, without sanity checks.")
+parser.add_option("-A", "--all",
+                  action="store_true", dest="all", default=False,
+                  help="use manifest as porpotions of largest possible fleet.")
 parser.add_option("-i", "--interactive",
                   action="store_true", dest="interactive", default=False,
                   help="catch reply and send to the browser.")
@@ -52,8 +55,16 @@ if not planet:
   sys.exit(1)
 
 if options.quick or planet.can_build(manifest):
+  if options.all:
+    proportions = manifest.copy()
+    while planet.can_build(manifest):
+      for key in manifest.keys():
+        manifest[key] += proportions[key]
+    for key in manifest.keys():
+      manifest[key] -= proportions[key]
   planet.build_fleet(manifest,
                      interactive=options.interactive,
                      skip_check=True)
+  print "built %s" % str(manifest)
 else:
     print "error: planet cannot afford that fleet"
