@@ -26,5 +26,10 @@ for p in g.planets:
     p.name, p.planetid, p.society, p.population, 
     p.money, p.food[0], p.steel[0], p.tax, p.tarif, p.distance
     )
-
+  for idx, status in enumerate(p.upgrades):
+    if status == game.UPGRADE_AVAILABLE:
+      print "can build %s" % game.UPGRADES[idx]
+    elif status > game.UPGRADE_AVAILABLE:
+      print "has %s" % game.UPGRADES[idx]
+g.write_planet_cache()
 

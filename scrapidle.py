@@ -45,8 +45,8 @@ def scrapidle(g, sink, type):
     type, sink.name)
   for f in g.fleets:
     if f.at(sink):
-      print '%d is at %s' % (f.fleetid, sink.name)
       f.load()
+      print '%d is at %s' % (f.fleetid, sink.name)
       if type in f.ships and len(f.ships.keys()) == 1:
         print '   found mule fleet: scrapping.'
         sink.scrap_fleet(f)

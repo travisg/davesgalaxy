@@ -42,13 +42,11 @@ def main():
 def collectsteel(g, sink, radius, type):  
   total = 0
   
-  g.load_all_planets()
-
   print 'Looking for planets with excess steel within %f of %s.' % (
     radius, sink.name)
   for p in g.planets:
-    p.load()
     if p.planetid != sink.planetid and sink.distance_to(p) <= radius:
+      p.load()
       surplus = 1
       while p.can_build({type: surplus}):
         surplus += 1
@@ -58,9 +56,13 @@ def collectsteel(g, sink, radius, type):
         fleet = p.build_fleet({type: surplus},
                               interactive=False,
                               skip_check=True)
-        total += surplus
-        print "moving %d to %s" % (fleet.fleetid, sink.name)
-        fleet.move_to_planet(sink)
+        if fleet:
+          total += surplus
+          print "moving %d to %s" % (fleet.fleetid, sink.name)
+          fleet.move_to_planet(sink)
+        else:
+          print "build failed."
+          
   
   value = game.ship_cost({type: total})
   print "collected %d steel" % value['steel']

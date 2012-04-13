@@ -19,10 +19,18 @@ URL_VIEW = HOST + "/view/"
 URL_PLANETS = HOST + "/planets/list/all/%d/"
 URL_FLEETS = HOST + "/fleets/list/all/%d/"
 URL_PLANET_DETAIL = HOST + "/planets/%d/info/"
+URL_PLANET_UPGRADES =  HOST + "/planets/%d/upgradelist/"
 URL_FLEET_DETAIL = HOST + "/fleets/%d/info/"
 URL_MOVE_TO_PLANET = HOST + "/fleets/%d/movetoplanet/"
 URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
 URL_SCRAP_FLEET = HOST + "/fleets/%d/scrap/"
+URL_SECTORS = HOST + "sectors/"
+
+UPGRADE_UNAVAILABLE = 0
+UPGRADE_AVAILABLE = 1
+UPGRADE_INACTIVE = 2
+UPGRADE_STARTED = 3
+UPGRADE_ACTIVE = 4
 
 CACHE_STALE_TIME = 5 * 60 * 60
 PLANET_CACHE_FILE = 'planet.dat'
@@ -109,6 +117,21 @@ ALL_SHIPS = {
                'krellmetal':67},
 }
 
+UPGRADES = [
+  'Long Range Sensors 1',
+  'Long Range Sensors 2 ',
+  'Trade Incentives ',
+  'Regional Government',
+  'Mind Control',
+  'Matter Synth 1',
+  'Matter Synth 2',
+  'Military Base',
+  'Slingshot',
+  'Farm Subsidies',
+  'Drilling Subsidies',
+  'Planetary Defense 1'
+]
+
 def pairs(t):
   return izip(*[iter(t)]*2)
 
@@ -143,6 +166,7 @@ class Planet:
     self.name = name
     self.location = location
     self._loaded = False
+    self._upgrades = None
   def __repr__(self):
     return "<Planet #%d \"%s\">" % (self.planetid, self.name)
   def __getstate__(self): 
@@ -191,6 +215,7 @@ class Planet:
     except IndexError:
       sys.stderr.write("loaded alien planet\n")
 
+    self.loadUpgrades()
     self._loaded = True
   def can_build(self, manifest):
     self.load()
@@ -218,6 +243,7 @@ class Planet:
         fleet = Fleet(self.galaxy,
                       j['newfleet']['i'],
                       [j['newfleet']['x'], j['newfleet']['y']])
+        self.galaxy.fleets.append(fleet)
         if self._loaded:
           cost = ship_cost(manifest)
           self.money -= cost['money']
@@ -231,7 +257,7 @@ class Planet:
           js = 'javascript:handleserverresponse(%s);' % response
           subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
     else:
-      print response
+      sys.stderr.write('%s\n' % response)
     return fleet
   def scrap_fleet(self, fleet):
     value = ship_cost(fleet.ships)
@@ -247,13 +273,40 @@ class Planet:
     else:
       return None
   def view(self):
-    self.load()
     js = 'javascript:gm.centermap(%d, %d);' % (self.location[0],
                                                self.location[1])
     subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
   def distance_to(self, other):
     return math.sqrt(math.pow(self.location[0]-other.location[0], 2) +
                      math.pow(self.location[1]-other.location[1], 2))
+  def loadUpgrades(self):
+    self._upgrades = map(lambda x: UPGRADE_UNAVAILABLE, range(0,len(UPGRADES)))
+    try:
+      req = self.galaxy.opener.open(URL_PLANET_UPGRADES % self.planetid)
+      soup = BeautifulSoup(json.load(req)['tab'])
+      for row in soup('tr')[1:]:
+        if 'td' in str(row):
+          cells=row('td')
+          if len(cells) > 3:
+            m=re.search(r'/planets/[0-9]+/upgrades/([a-z]+)/([0-9]+).',
+                        str(row))
+            idx = int(m.group(2))
+            self._upgrades[idx] = UPGRADE_AVAILABLE
+            if m.group(1) == 'scrap':
+              self._upgrades[idx] = UPGRADE_STARTED
+              if 'Active' in str(cells[2]):
+                self._upgrades[idx] = UPGRADE_ACTIVE
+              elif '100%' in str(cells[3]):
+                self._upgrades[idx] = UPGRADE_INACTIVE
+    except urllib2.HTTPError:
+      sys.stderr.write('failed to read upgrades for planet %d/n' %
+                       self.planetid)
+    return self._upgrades
+  @property
+  def upgrades(self):
+    if self._upgrades: return self._upgrades
+    self.loadUpgrades()
+    return self._upgrades
 
 
 class Fleet:
@@ -262,6 +315,7 @@ class Fleet:
     self.fleetid = int(fleetid)
     self.coords = coords
     self.at_planet = at
+    self.home = None
     self._loaded = False
   def __repr__(self):
     return "<Fleet #%d%s @ (%.1f,%.1f)>" % (self.fleetid, 
@@ -275,9 +329,12 @@ class Fleet:
     try:
       req = self.galaxy.opener.open(URL_FLEET_DETAIL % self.fleetid)
       soup = self.soup = BeautifulSoup(json.load(req)['pagedata'])
+      home = soup.find(text="Home Port:").findNext('td').string
+      self.home = self.galaxy.find_planet(int(home.split('-')[1]))
       dest = soup.find(text="Destination:").findNext('td').string
       self.destination = parse_coords(dest)
-      if not self.destination: self.destination = dest
+      if not self.destination:
+        self.destination = self.galaxy.find_planet(int(home.split('-')[1]))
       self.disposition = soup.find(text="Disposition:").findNext('td').string
       try:
         self.speed = float(soup.find(text="Current Speed:")
@@ -296,6 +353,11 @@ class Fleet:
       self.destination = None
       self.speed = 0.0
       self.ships = dict()
+    except urllib2.HTTPError:
+      # stale fleet
+      self.destination = None
+      self.speed = 0.0
+      self.ships = dict()
     self._loaded = True
 
   def move_to_planet(self, planet):
@@ -306,12 +368,17 @@ class Fleet:
     response = req.read()
     success = 'Destination Changed' in response
     if not success:
-      print response
+      sys.stderr.write('%s/n' % response)
     return success
   def at(self, planet):
-    return (self.at_planet and 
-            math.sqrt(math.pow(self.coords[0]-planet.location[0], 2) +
-                      math.pow(self.coords[1]-planet.location[1], 2)) < 0.1)
+    if not self.at_planet:
+      return False
+    if not planet:
+      return False
+    if type(self.coords) == types.ListType:
+      return math.sqrt(math.pow(self.coords[0]-planet.location[0], 2) +
+                       math.pow(self.coords[1]-planet.location[1], 2)) < 0.1
+    return str(planet.planetid) in self.coords
   def scrap(self):
     if not self.at_planet:
       return False
@@ -348,10 +415,17 @@ class Galaxy:
         return p
     return None
     
-  def find_planet(self, name):
-    for p in self.planets:
-      if name == p.name:
-        return p
+  def find_planet(self, query):
+    if type(query) == types.StringType:
+      for p in self.planets:
+        if query == p.name:
+          return p
+      return None
+    if type(query) == types.IntType:
+      for p in self.planets:
+        if query == p.planetid:
+          return p
+      return None
     return None
     
   def load_all_planets(self):
@@ -359,7 +433,7 @@ class Galaxy:
     for p in self.planets:
       all_loaded = p._loaded and all_loaded
     if not all_loaded:
-      print "loading all planets"
+      sys.stderr.write("loading all planets\n")
       for p in self.planets:
         p.load()
     return None
@@ -369,7 +443,7 @@ class Galaxy:
     for f in self.fleets:
       all_loaded = f._loaded and all_loaded
     if not all_loaded:
-      print "loading all fleets"
+      sys.stderr.write("loading all fleets\n")
       for f in self.fleets:
         f.load()
       self.write_fleet_cache()
@@ -452,6 +526,17 @@ class Galaxy:
     self.write_fleet_cache()
     return fleets
     
+  def load_sector(self, location):
+    formdata = {}
+    sector = int(location[0] / 5) * 1000 + int(location[1] / 5)
+    formdata[str(sector)] = 1
+    req = self.opener.open(URL_SECTORS,
+                           urllib.urlencode(formdata))        
+    response = req.read()
+    sys.stderr.write('%s\n' % response)
+    j = json.loads(response)
+    sys.stderr.write('%s\n' % str(j['sectors']['sectors'].keys()))
+
   def write_planet_cache(self):
     # TODO: planets fail to pickle due to a lock object, write a reduce
     self.write_cache(PLANET_CACHE_FILE, self._planets)
@@ -467,6 +552,10 @@ class Galaxy:
 
   def load_fleet_cache(self):
     self._fleets = self.load_cache(FLEET_CACHE_FILE )
+    if self._fleets:
+      for item in self._fleets:
+        if hasattr(item, 'home') and item.home:
+          item.home = self.find_planet(item.home.planetid)
     return None
 
   def write_cache(self, filename, data):
@@ -479,15 +568,19 @@ class Galaxy:
     return None
 
   def load_cache(self, filename):
+    sys.stderr.write("loading cached data from %s\n" % filename)
     cache_data = None
-    if (time.time() - os.stat(filename).st_mtime) < CACHE_STALE_TIME:
-      cache_file = open(filename, 'r')
-      cache_data = pickle.load(cache_file)
-      cache_file.close()
-      for item in cache_data:
-        item.galaxy = self
-      print "loaded cached data from %s" % filename
-    else:
-      print "cached data in %s is stale" % filename
-      pass
+    try: 
+      if (time.time() - os.stat(filename).st_mtime) < CACHE_STALE_TIME:
+        cache_file = open(filename, 'r')
+        cache_data = pickle.load(cache_file)
+        cache_file.close()
+        for item in cache_data:
+          item.galaxy = self
+        sys.stderr.write("loaded cached data from %s\n" % filename)
+      else:
+        sys.stderr.write("cached data in %s is stale\n" % filename)
+        pass
+    except:
+        sys.stderr.write("cache file %s is missing or corrupt\n" % filename)
     return cache_data

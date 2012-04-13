@@ -38,5 +38,5 @@ for f in g.fleets:
     dest,
     dictstr(f.ships)
   )
-
+g.write_fleet_cache()
 

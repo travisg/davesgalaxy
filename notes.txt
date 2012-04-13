@@ -26,16 +26,80 @@ built 40 bulkfreighters at The Ranch
 built 40 bulkfreighters at Zeta Arsetes
 built 40 bulkfreighters at Beta Delphtes
 built 40 bulkfreighters at Omicron Canis Cygni
-
-built 15 bulkfreighters at Rho Pixis Cygni
-built 24 bulkfreighters at Lambda Indiinus
-built 26 bulkfreighters at Upsilon Phoensetooine 0
-built 32 bulkfreighters at Chi Cecilae Pavonis
+built 40 bulkfreighters at Upsilon Phoensetooine 0
+built 40 bulkfreighters at Rho Pixis Cygni
+built 40 bulkfreighters at Lambda Indiinus
+built 40 bulkfreighters at Chi Cecilae Pavonis
 built 33 bulkfreighters at Nu Eridani Borealis
 built 34 bulkfreighters at Lambda Ophiuchiax
 built 36 bulkfreighters at Chi Octanstes
 built 36 bulkfreighters at Omega Eririus
 built 39 bulkfreighters at Zeta Androbae
 
-built {'superbattleships': 16914}
+built 21 bulkfreighters at Chi Phoenseris
+built 22 bulkfrighters at Delta Canis Pavonis
+built 10 bulkfrighters at Delta Cassionus
+built 10 bulkfreighters at Epsilon Cariax
+built 15 bulkfreighters at Eta Aurilum
+built 16 bulkfreighters at Eta Cassiorius
+built 14 bulkfreighters at Gamma Ceti Minor
+built 18 bulkfreighters at Iota Aquates
+built 9 bulkfreighters at Kappa Circlum
+built 27 bulkfreighters at Mu Draconis Borealis
+built 3 bulkfreighters at Nu Erinorg
+built 15 bulkfreighters at Phi Monoinus 4
+built 15 bulkfreighters at Psi Cecilae Borealis
+built 5 bulkfreighters at Rho Circnae
+built 15 bulkfreighters at Sigma Circceros 0
+built 38 bulkfreighters at Upsilon Circinus
+built 3 bulkfreighters at Upsilon Octanstooine 5
+
 built {'cruisers': 7728, 'arcs': 7728}
+built {'superbattleships': 16914}
+
+built {'cruisers': 7651, 'arcs': 7651}
+built {'superbattleships': 16931}
+
+built {'cruisers': 7657, 'arcs': 7657}
+built {'superbattleships': 16944}
+
+built {'cruisers': 7519, 'arcs': 7519}
+built {'superbattleships': 16941}
+
+built {'cruisers': 7433, 'arcs': 7433}
+built {'superbattleships': 16967}
+
+built {'cruisers': 7242, 'arcs': 7242}
+built {'superbattleships': 17186}
+
+mdsteele capitol 65 on Thu Apr 12 22:21:43 2012 
+
+Spinward
+100 destroyers (327963)
+100 cruisers (358312)
+100 battleships (369500)
+300 destroyers (384829)
+200 cruisers (399806)
+
+Hubward
+2 cruisers
+300 destroyers (326591)
+250 cruisers (342437)
+100 battleships (349789)
+200 subspacers (351081)
+300 destroyers (371377)
+125 cruisers (376752)
+400 destroyers (387597)
+100 battleships (390746)
+200 subspacers (410518)
+
+(/(distance '(1581.8 1476.6) '(1553.8 1478.6)) 5.0)
+import game
+g=game.Galaxy()
+g.login()
+g.load_sector([1600.0, 1400.0])
+
+./scrapfleet 358285
+./scrapfleet 358287
+./scrapfleet 358288
+./scrapfleet 358289

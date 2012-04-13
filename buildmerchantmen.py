@@ -44,6 +44,7 @@ def buildmerchantmen(g, level):
   print 'Looking for planets younger than %d to build merchantmen.' % level
   print 'Name, ID, Society, Money, Antimatter, Steel'
   for p in g.planets:
+    p.load()
     if p.society < level and p.steel[0] > arc_cost['steel']:
       neighbors = None
       if p.can_build(merchant):

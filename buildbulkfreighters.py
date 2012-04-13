@@ -18,11 +18,14 @@ def main():
                     help="username of login")
   parser.add_option("-P", "--password", dest="password",
                     help="password for login")
-  parser.add_option("-l", "--limit", dest="limit",
-                    type="int", default = 10000,
-                    help="maximum number of fleets to build")
+  parser.add_option("-o", "--old", dest="old",
+                    help="minimum society level to create bulk fleet",
+                    default=80,
+                    type="int")
+  parser.add_option("-b", "--bulks", dest="bulks",
+                    type="int", default = 40,
+                    help="maximum number of bulkfrieghters per planet")
   (options, args) = parser.parse_args()
-  planetid = args[0]
 
   g=game.Galaxy()
   if options.username and options.password:
@@ -31,40 +34,48 @@ def main():
   else:
     # try to pick up stored credentials
     g.login()
-
-  try:
-    planet = game.Planet(g, int(planetid))
-  except ValueError:
-    planet = g.find_planet(planetid)
-    print "using planet %d with name %s" % (planet.planetid, planet.name)
     
-  buildbuildbulkfreighters(g, planet, options.limit)
+  buildbulkfreighters(g, options.old, options.bulks)
+  g.write_fleet_cache()
 
-#TODO abstract out this pattern: build and deploy nearby
-def buildbuildbulkfreighters(g, planet, limit):
-  """Build bulkfreighters at a planet and deploy them nearby."""
+
+def buildbulkfreighters(g, old, limit_in):
+  """Build bulkfreighters at advanced planets and deploy them nearby."""
   merchant = {'bulkfreighters': 1}
-  planet.load()
-
-  built = 0
-  neighbors = None
-  neighbors = g.my_planets_near(planet)
-  print "building no more than %d bulkfrighters at %s" % (limit, planet.name)
-  while planet.can_build(merchant) and len(neighbors) > 0 and built < limit:
-    try:
-      fleet = planet.build_fleet(merchant,
-                                 interactive=False,
-                                 skip_check=True)
-      sink = neighbors.pop(0)['planet']
-      print "  moving %d to %s" % (fleet.fleetid, sink.name)
-      fleet.move_to_planet(sink)
-      built += 1
-    except:
-      # something blew up, move on
-      neighbors = []
-
-  print "built %d bulkfreighters at %s" % (built, planet.name)
-
+  for planet in g.planets:
+    limit = limit_in
+    planet.load()
+    if planet.society > old:
+      alread_has = 0
+      for f in g.fleets:
+        f.load()
+        if f.home == planet and 'bulkfreighters' in f.ships:
+          alread_has += 1
+      limit -= alread_has
+    
+      built = 0
+      neighbors = None
+      neighbors = g.my_planets_near(planet)
+      if limit > 0:
+        print "building no more than %d bulkfrighters at %s" % (limit,
+                                                                planet.name)
+      else:
+        print "already %d bulkfrighters at %s" % (alread_has, planet.name)
+      done = False
+      while not done and planet.can_build(merchant) and built < limit:
+        fleet = planet.build_fleet(merchant,
+                                   interactive=False,
+                                   skip_check=True)
+        if fleet:
+          sink = neighbors.pop(0)['planet']
+          print "  moving %d to %s" % (fleet.fleetid, sink.name)
+          fleet.move_to_planet(sink)
+          built += 1
+        else:
+          print "  build failed."
+          done = True
+      if built > 0:
+        print "built %d bulkfreighters at %s" % (built, planet.name)
 
 if __name__ == "__main__":
     main()
