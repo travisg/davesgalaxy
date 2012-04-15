@@ -1,3 +1,4 @@
+# vim: set ts=2 expandtab:
 import cookielib
 import json
 import math
@@ -33,7 +34,8 @@ UPGRADE_UNAVAILABLE = 0
 UPGRADE_AVAILABLE = 1
 UPGRADE_INACTIVE = 2
 UPGRADE_STARTED = 3
-UPGRADE_ACTIVE = 4
+UPGRADE_STARTED_0 = 4
+UPGRADE_ACTIVE = 5
 
 CACHE_STALE_TIME = 5 * 60 * 60
 PLANET_CACHE_FILE = 'planet.dat'
@@ -302,6 +304,8 @@ class Planet:
                 self._upgrades[idx] = UPGRADE_ACTIVE
               elif '100%' in str(cells[3]):
                 self._upgrades[idx] = UPGRADE_INACTIVE
+              elif '0%' in str(cells[3]):
+                self._upgrades[idx] = UPGRADE_STARTED_0
     except urllib2.HTTPError:
       sys.stderr.write('failed to read upgrades for planet %d/n' %
                        self.planetid)
@@ -319,6 +323,14 @@ class Planet:
     self.loadUpgrades()
     index = UPGRADES.index(upgrade)
     return self.upgrades[index] > UPGRADE_AVAILABLE
+  def building_upgrade_zeropercent(self, upgrade):
+    self.loadUpgrades()
+    index = UPGRADES.index(upgrade)
+    return self.upgrades[index] == UPGRADE_STARTED_0
+  def building_upgrade(self, upgrade):
+    self.loadUpgrades()
+    index = UPGRADES.index(upgrade)
+    return self.upgrades[index] == UPGRADE_STARTED or self.upgrades[index] == UPGRADE_STARTED_0
   def start_upgrade(self, upgrade):
     index = UPGRADES.index(upgrade)
     try:
