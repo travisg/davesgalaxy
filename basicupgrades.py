@@ -59,7 +59,7 @@ def BuildUpgrades(g, doupgrade, domindcontrol):
     if p.society > 50 and p.can_upgrade('Matter Synth 2') and p.population >= 500000:
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 2')
     if domindcontrol and p.can_upgrade('Mind Control'):
-      if p.society > 72:
+      if p.society < 90 and p.society > 72:
         total += BuildUpgrade(p, doupgrade, 'Mind Control')
 
   print "started %d upgrades" % total
