@@ -46,12 +46,12 @@ def buildbulkfreighters(g, old, limit_in):
     limit = limit_in
     planet.load()
     if planet.society > old:
-      alread_has = 0
+      already_has = 0
       for f in g.fleets:
         f.load()
         if f.home == planet and 'bulkfreighters' in f.ships:
-          alread_has += 1
-      limit -= alread_has
+          already_has += 1
+      limit -= already_has
     
       built = 0
       neighbors = None
@@ -60,7 +60,7 @@ def buildbulkfreighters(g, old, limit_in):
         print "building no more than %d bulkfrighters at %s" % (limit,
                                                                 planet.name)
       else:
-        print "already %d bulkfrighters at %s" % (alread_has, planet.name)
+        print "already %d bulkfrighters at %s" % (already_has, planet.name)
       done = False
       while not done and planet.can_build(merchant) and built < limit:
         fleet = planet.build_fleet(merchant,
@@ -75,7 +75,8 @@ def buildbulkfreighters(g, old, limit_in):
           print "  build failed."
           done = True
       if built > 0:
-        print "built %d bulkfreighters at %s" % (built, planet.name)
+        print "built %d bulkfreighters at %s for %d total" % (
+          built, planet.name, built + already_has)
 
 if __name__ == "__main__":
     main()

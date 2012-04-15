@@ -20,6 +20,7 @@ URL_PLANETS = HOST + "/planets/list/all/%d/"
 URL_FLEETS = HOST + "/fleets/list/all/%d/"
 URL_PLANET_DETAIL = HOST + "/planets/%d/info/"
 URL_PLANET_UPGRADES =  HOST + "/planets/%d/upgradelist/"
+URL_PLANET_UPGRADE_ACTION =  HOST + "/planets/%d/upgrades/%s/%d/"
 URL_FLEET_DETAIL = HOST + "/fleets/%d/info/"
 URL_MOVE_TO_PLANET = HOST + "/fleets/%d/movetoplanet/"
 URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
@@ -119,8 +120,8 @@ ALL_SHIPS = {
 
 UPGRADES = [
   'Long Range Sensors 1',
-  'Long Range Sensors 2 ',
-  'Trade Incentives ',
+  'Long Range Sensors 2',
+  'Trade Incentives',
   'Regional Government',
   'Mind Control',
   'Matter Synth 1',
@@ -214,7 +215,6 @@ class Planet:
       self.krellmetal=map(int, data[i:i+3]) ; i+=3
     except IndexError:
       sys.stderr.write("loaded alien planet\n")
-
     self.loadUpgrades()
     self._loaded = True
   def can_build(self, manifest):
@@ -243,7 +243,8 @@ class Planet:
         fleet = Fleet(self.galaxy,
                       j['newfleet']['i'],
                       [j['newfleet']['x'], j['newfleet']['y']])
-        self.galaxy.fleets.append(fleet)
+        if self.galaxy._fleets:
+          self.galaxy.fleets.append(fleet)
         if self._loaded:
           cost = ship_cost(manifest)
           self.money -= cost['money']
@@ -260,8 +261,8 @@ class Planet:
       sys.stderr.write('%s\n' % response)
     return fleet
   def scrap_fleet(self, fleet):
-    value = ship_cost(fleet.ships)
-    if fleet.scrap() and self._loaded:
+    if fleet.scrap() and self._loaded and fleet._loaded:
+      value = ship_cost(fleet.ships)
       self.money += value['money']
       self.steel[0] += value['steel']
       self.population += value['population']
@@ -280,6 +281,7 @@ class Planet:
     return math.sqrt(math.pow(self.location[0]-other.location[0], 2) +
                      math.pow(self.location[1]-other.location[1], 2))
   def loadUpgrades(self):
+    if self._upgrades: return self._upgrades
     self._upgrades = map(lambda x: UPGRADE_UNAVAILABLE, range(0,len(UPGRADES)))
     try:
       req = self.galaxy.opener.open(URL_PLANET_UPGRADES % self.planetid)
@@ -307,7 +309,30 @@ class Planet:
     if self._upgrades: return self._upgrades
     self.loadUpgrades()
     return self._upgrades
-
+  def can_upgrade(self, upgrade):
+    self.loadUpgrades()
+    index = UPGRADES.index(upgrade)
+    return self.upgrades[index] == UPGRADE_AVAILABLE
+  def has_upgrade(self, upgrade):
+    self.loadUpgrades()
+    index = UPGRADES.index(upgrade)
+    return self.upgrades[index] > UPGRADE_AVAILABLE
+  def start_upgrade(self, upgrade):
+    index = UPGRADES.index(upgrade)
+    try:
+      self.galaxy.opener.open(URL_PLANET_UPGRADE_ACTION %
+                              (self.planetid, 'start', index))
+      return True
+    except urllib2.HTTPError:
+      return False
+  def scrap_upgrade(self, upgrade):
+    index = UPGRADES.index(upgrade)
+    try:
+      self.galaxy.opener.open(URL_PLANET_UPGRADE_ACTION %
+                              (self.planetid, 'scrap', index))
+      return True
+    except urllib2.HTTPError:
+      return False
 
 class Fleet:
   def __init__(self, galaxy, fleetid, coords, at=False):
