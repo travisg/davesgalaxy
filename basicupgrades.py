@@ -52,9 +52,9 @@ def BuildUpgrades(g, doupgrade):
       total += BuildUpgrade(p, doupgrade, 'Long Range Sensors 2')
     if p.society > 30 and p.can_upgrade('Slingshot') and p.population >= 20000:
       total += BuildUpgrade(p, doupgrade, 'Slingshot')
-    if p.society > 35 and p.can_upgrade('Matter Synth 1') and p.population >= 45000:
+    if p.society > 40 and p.can_upgrade('Matter Synth 1') and p.population >= 200000:
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 1')
-    if p.can_upgrade('Matter Synth 2') and p.population >= 200000:
+    if p.society > 50 and p.can_upgrade('Matter Synth 2') and p.population >= 500000:
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 2')
 
   print "started %d upgrades" % total
