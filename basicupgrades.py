@@ -13,6 +13,8 @@ def main():
                     help="password for login")
   parser.add_option("-n", "--noupgrade", dest="doupgrade",
                     action="store_false", default=True, help="dry run")
+  parser.add_option("-m", "--mindcontrol", dest="mindcontrol",
+                    action="store_true", default=False, help="build mind control")
   (options, args) = parser.parse_args()
   
   g=game.Galaxy()
@@ -23,7 +25,7 @@ def main():
     # try to pick up stored credentials
     g.login()
 
-  BuildUpgrades(g, options.doupgrade)
+  BuildUpgrades(g, options.doupgrade, options.mindcontrol)
 
 def BuildUpgrade(p, doupgrade, upgrade):
   total = 0
@@ -37,7 +39,7 @@ def BuildUpgrade(p, doupgrade, upgrade):
     print "\twould have built %s at %s." % (upgrade, p.name)
   return total
 
-def BuildUpgrades(g, doupgrade):
+def BuildUpgrades(g, doupgrade, domindcontrol):
   has_pd = []
   total = 0
 
@@ -56,6 +58,9 @@ def BuildUpgrades(g, doupgrade):
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 1')
     if p.society > 50 and p.can_upgrade('Matter Synth 2') and p.population >= 500000:
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 2')
+    if domindcontrol and p.can_upgrade('Mind Control'):
+      if p.society > 72:
+        total += BuildUpgrade(p, doupgrade, 'Mind Control')
 
   print "started %d upgrades" % total
 
