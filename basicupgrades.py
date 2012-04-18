@@ -15,6 +15,8 @@ def main():
                     action="store_false", default=True, help="dry run")
   parser.add_option("-m", "--mindcontrol", dest="mindcontrol",
                     action="store_true", default=False, help="build mind control")
+  parser.add_option("-d", "--defense", dest="defense",
+                    action="store_true", default=False, help="build planetary defense")
   (options, args) = parser.parse_args()
   
   g=game.Galaxy()
@@ -25,7 +27,7 @@ def main():
     # try to pick up stored credentials
     g.login()
 
-  BuildUpgrades(g, options.doupgrade, options.mindcontrol)
+  BuildUpgrades(g, options.doupgrade, options.mindcontrol, options.defense)
 
 def BuildUpgrade(p, doupgrade, upgrade):
   total = 0
@@ -39,7 +41,7 @@ def BuildUpgrade(p, doupgrade, upgrade):
     print "\twould have built %s at %s." % (upgrade, p.name)
   return total
 
-def BuildUpgrades(g, doupgrade, domindcontrol):
+def BuildUpgrades(g, doupgrade, domindcontrol, dodefense):
   has_pd = []
   total = 0
 
@@ -58,6 +60,8 @@ def BuildUpgrades(g, doupgrade, domindcontrol):
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 1')
     if p.society > 50 and p.can_upgrade('Matter Synth 2') and p.population >= 500000:
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 2')
+    if dodefense and p.can_upgrade('Planetary Defense 1') and p.population >= 5000000:
+      total += BuildUpgrade(p, doupgrade, 'Planetary Defense 1')
     if domindcontrol and p.can_upgrade('Mind Control'):
       if p.society < 90 and p.society > 72:
         total += BuildUpgrade(p, doupgrade, 'Mind Control')
