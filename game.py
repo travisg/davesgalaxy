@@ -1,4 +1,4 @@
-# vim: set ts=2 expandtab:
+# vim: set ts=2 sw=2 expandtab:
 import cookielib
 import json
 import math
@@ -598,6 +598,8 @@ class Galaxy:
     return None
 
   def write_cache(self, filename, data):
+    # need to bump the recursion limit to let it work
+    sys.setrecursionlimit(10000)
     try:
       cache_file = open(filename, 'w')
       pickle.dump(data, cache_file)
