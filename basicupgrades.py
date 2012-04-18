@@ -63,7 +63,7 @@ def BuildUpgrades(g, doupgrade, domindcontrol, dodefense):
     if dodefense and p.can_upgrade('Planetary Defense 1') and p.population >= 5000000:
       total += BuildUpgrade(p, doupgrade, 'Planetary Defense 1')
     if domindcontrol and p.can_upgrade('Mind Control'):
-      if p.society < 90 and p.society > 72:
+      if p.society < 90 and p.society > 70:
         total += BuildUpgrade(p, doupgrade, 'Mind Control')
 
   print "started %d upgrades" % total
