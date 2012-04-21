@@ -25,3 +25,4 @@ except ValueError:
 print planet.location
 print planet.name
 planet.view()
+g.write_planet_cache()

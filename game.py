@@ -25,6 +25,7 @@ URL_FLEET_DETAIL = HOST + "/fleets/%d/info/"
 URL_MOVE_TO_PLANET = HOST + "/fleets/%d/movetoplanet/"
 URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
 URL_SCRAP_FLEET = HOST + "/fleets/%d/scrap/"
+URL_BUILD_ROUTE = HOST + '/routes/named/add/'
 URL_SECTORS = HOST + "sectors/"
 
 UPGRADE_UNAVAILABLE = 0
@@ -133,6 +134,8 @@ UPGRADES = [
   'Planetary Defense 1'
 ]
 
+ME = 'me'
+
 def pairs(t):
   return izip(*[iter(t)]*2)
 
@@ -161,10 +164,11 @@ def ship_cost(manifest):
 
 
 class Planet:
-  def __init__(self, galaxy, planetid, name='unknown', location=None):
+  def __init__(self, galaxy, planetid, name='unknown', location=None, owner=ME):
     self.galaxy = galaxy
     self.planetid = int(planetid)
     self.name = name
+    self.owner = owner
     self.location = location
     self._loaded = False
     self._upgrades = None
@@ -235,14 +239,15 @@ class Planet:
       for type,quantity in manifest.items():
         formdata['num-%s' % type] = quantity
       req = self.galaxy.opener.open(URL_BUILD_FLEET % self.planetid,
-                             urllib.urlencode(formdata))        
+                                    urllib.urlencode(formdata))
       response = req.read()
       fleet = None
       if 'Fleet Built' in response: 
         j = json.loads(response)
         fleet = Fleet(self.galaxy,
                       j['newfleet']['i'],
-                      [j['newfleet']['x'], j['newfleet']['y']])
+                      [j['newfleet']['x'], j['newfleet']['y']],
+                      True) # feets are created at planets
         if self.galaxy._fleets:
           self.galaxy.fleets.append(fleet)
         if self._loaded:
@@ -354,13 +359,14 @@ class Fleet:
     try:
       req = self.galaxy.opener.open(URL_FLEET_DETAIL % self.fleetid)
       soup = self.soup = BeautifulSoup(json.load(req)['pagedata'])
-      home = soup.find(text="Home Port:").findNext('td').string
+      home = str(soup.find(text="Home Port:").findNext('td').string)
       self.home = self.galaxy.find_planet(int(home.split('-')[1]))
-      dest = soup.find(text="Destination:").findNext('td').string
+      dest = str(soup.find(text="Destination:").findNext('td').string)
       self.destination = parse_coords(dest)
       if not self.destination:
         self.destination = self.galaxy.find_planet(int(home.split('-')[1]))
-      self.disposition = soup.find(text="Disposition:").findNext('td').string
+      self.disposition = str(soup.find(text="Disposition:")
+                             .findNext('td').string)
       try:
         self.speed = float(soup.find(text="Current Speed:")
                            .findNext('td').string)
@@ -413,10 +419,23 @@ class Fleet:
     return 'Fleet Scrapped' in response
 
 
+class Route:
+  def __init__(self, galaxy, id, circular, name, points):
+    self.galaxy = galaxy
+    self.routeid = int(id)
+    self.circular = circular
+    self.name = name
+    self.points = points
+  def __getstate__(self): 
+    return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
+
+
 class Galaxy:
   def __init__(self):
     self._planets = None
     self._fleets = None
+    self._routes = None
+    self._stars = None # alien planets
     self._logged_in = False
     self.jar = cookielib.LWPCookieJar()
     try:
@@ -440,6 +459,18 @@ class Galaxy:
         return p
     return None
     
+  def find_route(self, query):
+    if type(query) == types.StringType:
+      for route in self.routes.values():
+        if route.name == query:
+          return route
+      return None
+    if type(query) == types.IntType:
+      try:
+        return self.routes[query]
+      except KeyError:
+        return None
+
   def find_planet(self, query):
     if type(query) == types.StringType:
       for p in self.planets:
@@ -483,6 +514,12 @@ class Galaxy:
     return survey
 
   @property
+  def routes(self):
+    if self._routes: return self._routes
+    self.load_sector([0, 0], routes=True)
+    return self._routes
+    
+  @property
   def planets(self):
     if self._planets: return self._planets
     
@@ -499,7 +536,7 @@ class Galaxy:
           cells=row('td')
           planetid=re.search(r'/planets/([0-9]*)/',
                              str(row('td')[0])).group(1)
-          name = cells[4].string
+          name = str(cells[4].string)
           coords = re.search(r'\(([0-9.]+),([0-9.]+)\)', str(row('td')[9]))
           location = map(lambda x: float(x), coords.groups())
 
@@ -551,17 +588,45 @@ class Galaxy:
     self.write_fleet_cache()
     return fleets
     
-  def load_sector(self, location):
+  def load_sector(self, location, routes=False):
     formdata = {}
     sector = int(location[0] / 5) * 1000 + int(location[1] / 5)
     formdata[str(sector)] = 1
+    if routes:
+      formdata['getnamedroutes'] = 'yes'
     req = self.opener.open(URL_SECTORS,
                            urllib.urlencode(formdata))        
     response = req.read()
-    sys.stderr.write('%s\n' % response)
     j = json.loads(response)
-    sys.stderr.write('%s\n' % str(j['sectors']['sectors'].keys()))
+    sys.stderr.write("sector reponse %s\n" % response)
+    routes = {}
+    for key, value in j['sectors']['routes'].iteritems():
+      if re.match(r'[\[,.\]0-9 ]+$', value['p']): # check input
+        p = eval(value['p'])
+        routes[int(key)] = Route(self, int(key), value['c'], value['n'], p)
+    if self._routes:
+      self._routes.update(routes)
+    else:
+      self._routes = routes
+    return j
 
+  def create_route(self, name, circular, *points):
+    formdata = {}
+    formdata['name'] = name
+    formdata['circular'] = str(circular).lower()
+    formdata['route'] = ','.join(map(lambda p: 
+                                     '/'.join(map(lambda x: str(x), p)), 
+                                     points))
+    print urllib.urlencode(formdata)
+    req = self.opener.open(URL_BUILD_ROUTE,
+                           urllib.urlencode(formdata))
+    response = req.read()
+    if 'Route Built' in response: 
+      j = json.loads(response)
+      return int(j['sectors']['routes'].keys()[0])
+    else:
+      return None
+      
   def write_planet_cache(self):
     # TODO: planets fail to pickle due to a lock object, write a reduce
     self.write_cache(PLANET_CACHE_FILE, self._planets)
@@ -587,8 +652,9 @@ class Galaxy:
     try:
       cache_file = open(filename, 'w')
       pickle.dump(data, cache_file)
+      cache_file.flush()
       cache_file.close()
-    except:
+    except KeyError:
       pass
     return None
 
@@ -606,6 +672,6 @@ class Galaxy:
       else:
         sys.stderr.write("cached data in %s is stale\n" % filename)
         pass
-    except:
+    except KeyError:
         sys.stderr.write("cache file %s is missing or corrupt\n" % filename)
     return cache_data
