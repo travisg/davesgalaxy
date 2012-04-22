@@ -28,7 +28,6 @@ def main():
     g.login()
 
   BuildUpgrades(g, options.doupgrade, options.mindcontrol, options.defense)
-  print "writing planet cache"
   g.write_planet_cache()
 
 def BuildUpgrade(p, doupgrade, upgrade):
