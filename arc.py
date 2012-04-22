@@ -1,0 +1,163 @@
+#!/usr/bin/env python
+# vim: set ts=2 sw=2 expandtab:
+
+import game
+from optparse import OptionParser
+import sys
+
+def main():
+  parser = OptionParser()
+  parser.add_option("-U", "--username", dest="username",
+                    help="username of login")
+  parser.add_option("-P", "--password", dest="password",
+                    help="password for login")
+  parser.add_option("-n", "--noupgrade", dest="doupgrade",
+                    action="store_false", default=True, help="dry run")
+  parser.add_option("-m", "--maxarcs", dest="maxarcs",
+                    action="store", type="int", default=-1, help="maximum arcs to build")
+  parser.add_option("-p", "--perplanet", dest="perplanet",
+                    action="store", type="int", default=-1, help="max arcs per planet")
+
+  parser.add_option("-x", "--sx", dest="sx",
+                    action="store", type="float", help="source x coordinate")
+  parser.add_option("-y", "--sy", dest="sy",
+                    action="store", type="float", help="source y coordinate")
+  parser.add_option("-r", "--sr", dest="sr",
+                    action="store", type="float", default=20.0, help="builder radius to consider")
+
+  parser.add_option("-X", "--tx", dest="tx",
+                    action="store", type="float", help="target x coordinate")
+  parser.add_option("-Y", "--ty", dest="ty",
+                    action="store", type="float", help="target y coordinate")
+  parser.add_option("-R", "--tr", dest="tr",
+                    action="store", type="float", help="target radius to consider")
+
+  (options, args) = parser.parse_args()
+
+  if options.sx == None or options.sy == None:
+    print "not enough arguments"
+    parser.print_help()
+    sys.exit(1)
+
+  # if they didn't set tx/ty/tr, copy from sx/sy/sr
+  if options.tx == None: options.tx = options.sx
+  if options.ty == None: options.ty = options.sy
+  if options.tr == None: options.tr = options.sr
+
+  print "options " + str(options)
+
+  g=game.Galaxy()
+  if options.username and options.password:
+    # explicit login
+    g.login(options.username, options.password, force=True)
+  else:
+    # try to pick up stored credentials
+    g.login()
+
+  BuildArcs(g, options.doupgrade, options.maxarcs, options.perplanet, [options.sx, options.sy], options.sr, [options.tx, options.ty], options.tr)
+
+def BuildArcs(g, doupgrade, maxarcs, perplanet, scenter, sr, tcenter, tr):
+
+  # find a list of potential arc builders
+  print "looking for arc builders..."
+  arc_builders = []
+  for p in g.planets:
+    dist = game.distance_between(scenter, p.location)
+    if dist < sr:
+      p.load()
+      if p.can_build({'arcs': 1}) and p.society > 30 and p.population > 20000:
+        print "planet " + str(p) + " can build arc"
+        p.distance_to_target = dist
+        arc_builders.append(p)
+
+  # sort arc builders by distance to target
+  arc_builders = sorted(arc_builders, key=lambda planet: planet.distance_to_target)
+
+  print "found " + str(len(arc_builders)) + " arc building planets"
+
+  # load the sectors around the target point
+  print "looking for unowned planets at target location..."
+  sect = g.load_sectors([tcenter[0]-tr, tcenter[1]-tr], [tcenter[0]+tr, tcenter[1]+tr])
+  #print sect
+  unowned_targets = sect["planets"]["unowned"]
+
+  # trim planets to ones strictly within the radius specified
+  foo = []
+  for p in unowned_targets:
+    dist = game.distance_between(tcenter, p.location)
+    if dist < tr:
+      foo.append(p)
+  unowned_targets = foo
+
+  print "found " + str(len(unowned_targets)) + " unowned planets"
+  
+  # trim the list of targets to ones that dont have an arc already incoming
+  # 
+  print "trimming list of unowned planets..."
+  for f in g.fleets:
+    f.load()
+    try:
+      if f.disposition == "Colonize":
+      # look for destinations in the NAME-NUMBER form
+        pnum = int(f.destination.split('-')[1])
+        for p in unowned_targets:
+          if p.planetid == pnum:
+            print "fleet " + str(f) + " already heading for dest"
+            unowned_targets.remove(p)
+            break
+    except:
+      pass
+
+  print "now have " + str(len(unowned_targets)) + " unowned planets"
+
+  # build arcs
+  built = 0
+  if len(unowned_targets) > 0:
+    print "building arcs..."
+    arc = { 'arcs': 1 }
+    done = False
+    for p in arc_builders:
+      if done:
+        break
+      # for this builder, find the closest unowned planets
+      for t in unowned_targets:
+        t.distance_to_target = game.distance_between(p.location, t.location)
+      unowned_targets = sorted(unowned_targets, key=lambda planet: planet.distance_to_target)
+
+      count = p.how_many_can_build(arc);
+      if perplanet > 0 and count > perplanet:
+        count = perplanet
+      print "planet " + str(p) + " can build " + str(count) + " arcs"
+      while not done and count > 0 and p.can_build(arc):
+          t = unowned_targets[0]
+          print "looking to build to " + str(t) + " distance: " + str(t.distance_to_target)
+          if doupgrade:
+            fleet = p.build_fleet(arc)
+            if fleet:
+              fleet.move_to_planet(t)
+            else:
+              print " failed to build fleet"
+              count = 0
+              break
+          
+          # cull this target from the list
+          unowned_targets.remove(t)
+          built += 1 
+          count -= 1
+          maxarcs -= 1
+          if (maxarcs == 0):
+            done = True
+          if len(unowned_targets) == 0:
+            done = True
+
+  if built > 0:
+    if doupgrade:
+      print "built %d arcs" % built
+    else:
+      print "would have built %d arcs" % built
+
+  g.write_planet_cache()
+  g.write_fleet_cache()
+
+if __name__ == "__main__":
+    main()
