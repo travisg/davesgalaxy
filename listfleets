@@ -25,8 +25,12 @@ def dictstr(d):
     "%s=%s" % (str(k),str(v)) for (k,v) in d.items()) + ")"
 
 print 'ID, Disposition, Coords, Destination, Ships'
+count = 0
 for f in g.fleets:
-  f.load()
+  if f.load():
+	  count += 1
+	  if (count % 250) == 0:
+		  g.write_fleet_cache()
   dest = f.destination
   if type(dest) in (types.ListType, types.TupleType):
     dest = '(%.1f,%.1f)' % tuple(dest)
@@ -38,5 +42,6 @@ for f in g.fleets:
     dest,
     dictstr(f.ships)
   )
+
 g.write_fleet_cache()
 
