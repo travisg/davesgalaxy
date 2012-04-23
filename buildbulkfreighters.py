@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# vim: set ts=2 sw=2 expandtab:
 
 import game
 from optparse import OptionParser
@@ -18,6 +19,8 @@ def main():
                     help="username of login")
   parser.add_option("-P", "--password", dest="password",
                     help="password for login")
+  parser.add_option("-n", "--noupgrade", dest="doupgrade",
+                    action="store_false", default=True, help="dry run")
   parser.add_option("-o", "--old", dest="old",
                     help="minimum society level to create bulk fleet",
                     default=80,
@@ -35,11 +38,11 @@ def main():
     # try to pick up stored credentials
     g.login()
     
-  buildbulkfreighters(g, options.old, options.bulks)
+  buildbulkfreighters(g, options.doupgrade, options.old, options.bulks)
+  g.write_planet_cache()
   g.write_fleet_cache()
 
-
-def buildbulkfreighters(g, old, limit_in):
+def buildbulkfreighters(g, doupgrade, old, limit_in):
   """Build bulkfreighters at advanced planets and deploy them nearby."""
   merchant = {'bulkfreighters': 1}
   for planet in g.planets:
@@ -61,22 +64,23 @@ def buildbulkfreighters(g, old, limit_in):
                                                                 planet.name)
       else:
         print "already %d bulkfrighters at %s" % (already_has, planet.name)
-      done = False
-      while not done and planet.can_build(merchant) and built < limit:
-        fleet = planet.build_fleet(merchant,
-                                   interactive=False,
-                                   skip_check=True)
-        if fleet:
-          sink = neighbors.pop(0)['planet']
-          print "  moving %d to %s" % (fleet.fleetid, sink.name)
-          fleet.move_to_planet(sink)
-          built += 1
-        else:
-          print "  build failed."
-          done = True
-      if built > 0:
-        print "built %d bulkfreighters at %s for %d total" % (
-          built, planet.name, built + already_has)
+      if doupgrade:
+        done = False
+        while not done and planet.can_build(merchant) and built < limit:
+          fleet = planet.build_fleet(merchant,
+                                     interactive=False,
+                                     skip_check=True)
+          if fleet:
+            sink = neighbors.pop(0)['planet']
+            print "  moving %d to %s" % (fleet.fleetid, sink.name)
+            fleet.move_to_planet(sink)
+            built += 1
+          else:
+            print "  build failed."
+            done = True
+        if built > 0:
+          print "built %d bulkfreighters at %s for %d total" % (
+            built, planet.name, built + already_has)
 
 if __name__ == "__main__":
     main()
