@@ -13,6 +13,8 @@ def main():
                     help="password for login")
   parser.add_option("-n", "--noupgrade", dest="doupgrade",
                     action="store_false", default=True, help="dry run")
+  parser.add_option("-b", "--military", dest="military",
+                    action="store_true", default=False, help="build military base")
   parser.add_option("-m", "--mindcontrol", dest="mindcontrol",
                     action="store_true", default=False, help="build mind control")
   parser.add_option("-d", "--defense", dest="defense",
@@ -27,7 +29,7 @@ def main():
     # try to pick up stored credentials
     g.login()
 
-  BuildUpgrades(g, options.doupgrade, options.mindcontrol, options.defense)
+  BuildUpgrades(g, options.doupgrade, options.mindcontrol, options.defense, options.military)
   g.write_planet_cache()
 
 def BuildUpgrade(p, doupgrade, upgrade):
@@ -42,7 +44,7 @@ def BuildUpgrade(p, doupgrade, upgrade):
     print "\twould have built %s at %s." % (upgrade, p.name)
   return total
 
-def BuildUpgrades(g, doupgrade, domindcontrol, dodefense):
+def BuildUpgrades(g, doupgrade, domindcontrol, dodefense, domilitary):
   has_pd = []
   total = 0
 
@@ -61,6 +63,8 @@ def BuildUpgrades(g, doupgrade, domindcontrol, dodefense):
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 1')
     if p.society > 50 and p.can_upgrade('Matter Synth 2') and p.population >= 500000:
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 2')
+    if domilitary and p.society > 50 and p.can_upgrade('Military Base') and p.population >= 5000000:
+      total += BuildUpgrade(p, doupgrade, 'Military Base')
     if dodefense and p.can_upgrade('Planetary Defense 1') and p.population >= 5000000:
       total += BuildUpgrade(p, doupgrade, 'Planetary Defense 1')
     if domindcontrol and p.can_upgrade('Mind Control'):
