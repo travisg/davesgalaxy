@@ -49,77 +49,88 @@ ALL_SHIPS = {
                        'food':300,
                        'antimatter':1050,
                        'money':75000,
-                       'krellmetal':290},
+                       'krellmetal':290,
+                       'needbase':True},
   'bulkfreighters': {'steel':2500,
                      'unobtanium':0,
                      'population':20,
                      'food':20,
                      'antimatter':50,
                      'money':1500,
-                     'krellmetal':0},
+                     'krellmetal':0,
+                     'needbase':False},
   'subspacers': {'steel':625,
                  'unobtanium':0,
                  'population':50,
                  'food':50,
                  'antimatter':250,
                  'money':12500,
-                 'krellmetal':16},
+                 'krellmetal':16,
+                 'needbase':False},
   'arcs': {'steel':9000,
            'unobtanium':0,
            'population':2000,
            'food':1000,
            'antimatter':500,
            'money':10000,
-           'krellmetal':0},
+           'krellmetal':0,
+           'needbase':False},
   'blackbirds': {'steel':500,
                  'unobtanium':25,
                  'population':5,
                  'food':5,
                  'antimatter':125,
                  'money':10000,
-                 'krellmetal':50},
+                 'krellmetal':50,
+                 'needbase':False},
   'merchantmen': {'steel':750,
                   'unobtanium':0,
                   'population':20,
                   'food':20,
                   'antimatter':50,
                   'money':6000,
-                  'krellmetal':0},
+                  'krellmetal':0,
+                  'needbase':False},
   'scouts': {'steel':250,
              'unobtanium':0,
              'population':5,
              'food':5,
              'antimatter':25,
              'money':250,
-             'krellmetal':0},
+             'krellmetal':0,
+             'needbase':False},
   'battleships': {'steel':4000,
                   'unobtanium':20,
                   'population':110,
                   'food':200,
                   'antimatter':655,
                   'money':25000,
-                  'krellmetal':155},
+                  'krellmetal':155,
+                  'needbase':True},
   'destroyers': {'steel':1200,
                  'unobtanium':0,
                  'population':60,
                  'food':70,
                  'antimatter':276,
                  'money':5020,
-                 'krellmetal':0},
+                 'krellmetal':0,
+                 'needbase':False},
   'frigates': {'steel':950,
                'unobtanium':0,
                'population':50,
                'food':50,
                'antimatter':200,
                'money':1250,
-               'krellmetal':0},
+               'krellmetal':0,
+               'needbase':False},
   'cruisers': {'steel':1625,
                'unobtanium':0,
                'population':80,
                'food':100,
                'antimatter':385,
                'money':15000,
-               'krellmetal':67},
+               'krellmetal':67,
+               'needbase':True},
 }
 
 UPGRADES = [
@@ -152,7 +163,8 @@ def ship_cost(manifest):
           'unobtanium': 0,
           'food': 0,
           'antimatter': 0,
-          'krellmetal': 0}
+          'krellmetal': 0,
+          'needbase': False}
   for type,quantity in manifest.items():
     cost['money'] += quantity * ALL_SHIPS[type]['money']
     cost['steel'] += quantity * ALL_SHIPS[type]['steel']
@@ -161,6 +173,10 @@ def ship_cost(manifest):
     cost['food'] += quantity * ALL_SHIPS[type]['food']
     cost['antimatter'] += quantity * ALL_SHIPS[type]['antimatter']
     cost['krellmetal'] += quantity * ALL_SHIPS[type]['krellmetal']
+
+    # if one of the ships on the list needs a military base, mark it
+    if ALL_SHIPS[type]['needbase']:
+      cost['needbase'] = True
   return cost
 
 def distance_between(locationA, locationB):
@@ -238,6 +254,10 @@ class Planet:
     self.load()
     cost = ship_cost(manifest)
     count = -1
+
+    has_base = self.has_active_upgrade('Military Base')
+    if cost['needbase'] and not has_base:
+      return 0
 
     if cost['money'] > 0:
       newcount = self.money / cost['money']
@@ -356,6 +376,10 @@ class Planet:
     self.loadUpgrades()
     index = UPGRADES.index(upgrade)
     return self.upgrades[index] > UPGRADE_AVAILABLE
+  def has_active_upgrade(self, upgrade):
+    self.loadUpgrades()
+    index = UPGRADES.index(upgrade)
+    return self.upgrades[index] == UPGRADE_ACTIVE
   def building_upgrade_zeropercent(self, upgrade):
     self.loadUpgrades()
     index = UPGRADES.index(upgrade)
@@ -366,9 +390,13 @@ class Planet:
     return self.upgrades[index] == UPGRADE_STARTED or self.upgrades[index] == UPGRADE_STARTED_0
   def start_upgrade(self, upgrade):
     index = UPGRADES.index(upgrade)
+    if not self.can_upgrade(upgrade):
+      return False
+
     try:
       self.galaxy.opener.open(URL_PLANET_UPGRADE_ACTION %
                               (self.planetid, 'start', index))
+      self.upgrades[index] = UPGRADE_STARTED_0
       return True
     except urllib2.HTTPError:
       return False
@@ -377,6 +405,7 @@ class Planet:
     try:
       self.galaxy.opener.open(URL_PLANET_UPGRADE_ACTION %
                               (self.planetid, 'scrap', index))
+      self.upgrades[index] = UPGRADE_AVAILABLE
       return True
     except urllib2.HTTPError:
       return False
