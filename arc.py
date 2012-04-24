@@ -60,20 +60,23 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, scenter, sr, tcenter, tr):
 
   # find a list of potential arc builders
   print "looking for arc builders..."
+  total_arcs = 0
   arc_builders = []
   for p in g.planets:
     dist = game.distance_between(scenter, p.location)
     if dist < sr:
       p.load()
-      if p.can_build({'arcs': 1}) and p.society > 30 and p.population > 20000:
-        print "planet " + str(p) + " can build arc"
-        p.distance_to_target = dist
+      count = p.how_many_can_build({'arcs': 1})
+      if count and p.society > 30 and p.population > 20000:
+        print "planet " + str(p) + " can build " + str(count) + " arcs"
+        p.distance_to_target = game.distance_between(tcenter, p.location)
         arc_builders.append(p)
+        total_arcs += count
 
   # sort arc builders by distance to target
   arc_builders = sorted(arc_builders, key=lambda planet: planet.distance_to_target)
 
-  print "found " + str(len(arc_builders)) + " arc building planets"
+  print "found " + str(len(arc_builders)) + " arc building planets capable of building " + str(total_arcs) + " arcs"
 
   # load the sectors around the target point
   print "looking for unowned planets at target location..."
