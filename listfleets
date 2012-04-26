@@ -29,7 +29,7 @@ count = 0
 for f in g.fleets:
   if f.load():
 	  count += 1
-	  if (count % 250) == 0:
+	  if (count % 100) == 0:
 		  g.write_fleet_cache()
   dest = f.destination
   if type(dest) in (types.ListType, types.TupleType):

@@ -25,9 +25,9 @@ count = 0
 for p in g.planets:
   if p.load():
     count += 1
-    if (count % 250) == 0:
-      g.write_planet_cache()
+    if (count % 100) == 0:
       print "refreshed " + str(count) + " planets"
+      g.write_planet_cache()
 
 if count > 0:
   g.write_planet_cache()
@@ -38,11 +38,10 @@ count = 0
 for f in g.fleets:
   if f.load():
     count += 1
-    if (count % 250) == 0:
-      g.write_fleet_cache()
+    if (count % 100) == 0:
       print "refreshed " + str(count) + " fleets"
+      g.write_fleet_cache()
 
 if count > 0:
   g.write_fleet_cache()
 print "loaded " + str(len(g.fleets)) + " fleets"
-
