@@ -187,7 +187,7 @@ class Planet:
   def __init__(self, galaxy, planetid, name='unknown', location=None):
     self.galaxy = galaxy
     self.planetid = int(planetid)
-    self.name = name
+    self.name = str(name)
     self.location = location
     self._loaded = False
     self._upgrades = None
@@ -195,8 +195,8 @@ class Planet:
     return "<Planet #%d \"%s\">" % (self.planetid, self.name)
   def __getstate__(self): 
     return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
-  def load(self):
-    if self._loaded: return False
+  def load(self, force=False):
+    if not force and self._loaded: return False
     retrycount = 0
     while retrycount < 5:
       retrycount = retrycount + 1
@@ -208,13 +208,12 @@ class Planet:
         pass
 
     soup = BeautifulSoup(json.load(req)['tab'])
-    self.soup = soup
 
     self.society = int(soup('div',{'class':'info1'})[0]('div')[2].string)
     data = [x.string.strip() for x in soup('td',{'class':'planetinfo2'})]
     i = 0
     if self.name == 'unknown':
-      self.name = data[i]
+      self.name = str(data[i])
     i+=1
     self.owner=data[i]; i+=1
     if self.location == None:
@@ -426,14 +425,14 @@ class Fleet:
       self.coords[0], self.coords[1])
   def __getstate__(self): 
     return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
-  def load(self):
-    if self._loaded: return False
+  def load(self, force=False):
+    if not force and self._loaded: return False
     try:
       req = self.galaxy.opener.open(URL_FLEET_DETAIL % self.fleetid)
-      soup = self.soup = BeautifulSoup(json.load(req)['pagedata'])
-      home = soup.find(text="Home Port:").findNext('td').string
+      soup = BeautifulSoup(json.load(req)['pagedata'])
+      home = str(soup.find(text="Home Port:").findNext('td').string)
       self.home = self.galaxy.find_planet(int(home.split('-')[1]))
-      dest = soup.find(text="Destination:").findNext('td').string
+      dest = str(soup.find(text="Destination:").findNext('td').string)
       self.destination = parse_coords(dest)
       if not self.destination:
         dsplit = dest.split('-')
@@ -441,7 +440,7 @@ class Fleet:
         if not self.destination:
           # must be headed for a unowned planet
           self.destination = dest
-      self.disposition = soup.find(text="Disposition:").findNext('td').string
+      self.disposition = str(soup.find(text="Disposition:").findNext('td').string)
       try:
         self.speed = float(soup.find(text="Current Speed:")
                            .findNext('td').string)
@@ -672,7 +671,7 @@ class Galaxy:
           owner = int(p.get("o", 0))
           locationx = float(p["x"])
           locationy = float(p["y"])
-          name = p["n"]
+          name = str(p["n"])
           planet = Planet(self, pid, name, [ locationx, locationy ])
           #print planet
           if owner == 0:
@@ -717,9 +716,10 @@ class Galaxy:
     # need to bump the recursion limit to let it work
     sys.setrecursionlimit(10000)
     try:
-      cache_file = open(filename, 'w')
+      cache_file = open(filename + ".tmp", 'w')
       pickle.dump(data, cache_file)
       cache_file.close()
+      os.rename(filename + ".tmp", filename)
     except Exception as e:
       print "exception writing cache"
       print type(e)
