@@ -57,8 +57,11 @@ def main():
 
   buildlist = sorted(buildlist, key=itemgetter(1), reverse=True) 
 
+  total = 0
   for b in buildlist:
     print "Planet " + str(b[0]) + " can build " + str(b[1]) + " " + s
+    total += b[1]
+  print str(total) + " total"
 
 if __name__ == "__main__":
     main()
