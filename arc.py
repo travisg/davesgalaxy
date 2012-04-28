@@ -17,6 +17,8 @@ def main():
                     action="store", type="int", default=-1, help="maximum arcs to build")
   parser.add_option("-p", "--perplanet", dest="perplanet",
                     action="store", type="int", default=-1, help="max arcs per planet")
+  parser.add_option("-l", "--leave", dest="leave",
+                    action="store", type="int", default=0, help="min of arcs to leave on planet")
 
   parser.add_option("-x", "--sx", dest="sx",
                     action="store", type="float", help="source x coordinate")
@@ -54,9 +56,9 @@ def main():
     # try to pick up stored credentials
     g.login()
 
-  BuildArcs(g, options.doupgrade, options.maxarcs, options.perplanet, [options.sx, options.sy], options.sr, [options.tx, options.ty], options.tr)
+  BuildArcs(g, options.doupgrade, options.maxarcs, options.perplanet, options.leave, [options.sx, options.sy], options.sr, [options.tx, options.ty], options.tr)
 
-def BuildArcs(g, doupgrade, maxarcs, perplanet, scenter, sr, tcenter, tr):
+def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, scenter, sr, tcenter, tr):
 
   # find a list of potential arc builders
   print "looking for arc builders..."
@@ -122,14 +124,22 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, scenter, sr, tcenter, tr):
     for p in arc_builders:
       if done:
         break
+
+      # trim the number we can build by per-planet limit
+      count = p.how_many_can_build(arc);
+      if perplanet > 0 and count > perplanet:
+        count = perplanet
+
+      # trim the number we can build by the min left limit
+      count -= leave
+      if count <= 0:
+        continue
+
       # for this builder, find the closest unowned planets
       for t in unowned_targets:
         t.distance_to_target = game.distance_between(p.location, t.location)
       unowned_targets = sorted(unowned_targets, key=lambda planet: planet.distance_to_target)
 
-      count = p.how_many_can_build(arc);
-      if perplanet > 0 and count > perplanet:
-        count = perplanet
       print "planet " + str(p) + " can build " + str(count) + " arcs"
       while not done and count > 0 and p.can_build(arc):
           t = unowned_targets[0]
