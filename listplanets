@@ -19,17 +19,23 @@ else:
   # try to pick up stored credentials
   g.login()
 
+count = 0
 print 'Name, ID, Society, Population, Money, Food, Steel, Tax, Tarif, Distance'
 for p in g.planets:
-  p.load()
+  if p.planetid == 2774451:
+	  p._loaded = False
+  if p.load():
+	  count += 1
+	  if (count % 100) == 0:
+		  g.write_planet_cache()
   print '"%s", %d, %d, %d, %d, %d, %d, %.1f, %.1f, %.1f' % (
     p.name, p.planetid, p.society, p.population, 
     p.money, p.food[0], p.steel[0], p.tax, p.tarif, p.distance
     )
   for idx, status in enumerate(p.upgrades):
     if status == game.UPGRADE_AVAILABLE:
-      print "can build %s" % game.UPGRADES[idx]
+      print "\tcan build %s" % game.UPGRADES[idx]
     elif status > game.UPGRADE_AVAILABLE:
-      print "has %s" % game.UPGRADES[idx]
+      print "\thas %s" % game.UPGRADES[idx]
 g.write_planet_cache()
 

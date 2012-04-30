@@ -1,3 +1,4 @@
+# vim: set ts=2 sw=2 expandtab:
 import cookielib
 import json
 import math
@@ -21,6 +22,8 @@ URL_FLEETS = HOST + "/fleets/list/all/%d/"
 URL_PLANET_DETAIL = HOST + "/planets/%d/info/"
 URL_PLANET_UPGRADES =  HOST + "/planets/%d/upgradelist/"
 URL_PLANET_UPGRADE_ACTION =  HOST + "/planets/%d/upgrades/%s/%d/"
+URL_PLANET_MANAGE = HOST + "/planets/%d/manage/"
+URL_PLANET_BUDGET = HOST + "/planets/%d/budget/"
 URL_FLEET_DETAIL = HOST + "/fleets/%d/info/"
 URL_MOVE_TO_PLANET = HOST + "/fleets/%d/movetoplanet/"
 URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
@@ -32,7 +35,8 @@ UPGRADE_UNAVAILABLE = 0
 UPGRADE_AVAILABLE = 1
 UPGRADE_INACTIVE = 2
 UPGRADE_STARTED = 3
-UPGRADE_ACTIVE = 4
+UPGRADE_STARTED_0 = 4
+UPGRADE_ACTIVE = 5
 
 CACHE_STALE_TIME = 5 * 60 * 60
 PLANET_CACHE_FILE = 'planet.dat'
@@ -46,77 +50,88 @@ ALL_SHIPS = {
                        'food':300,
                        'antimatter':1050,
                        'money':75000,
-                       'krellmetal':290},
+                       'krellmetal':290,
+                       'needbase':True},
   'bulkfreighters': {'steel':2500,
                      'unobtanium':0,
                      'population':20,
                      'food':20,
                      'antimatter':50,
                      'money':1500,
-                     'krellmetal':0},
+                     'krellmetal':0,
+                     'needbase':False},
   'subspacers': {'steel':625,
                  'unobtanium':0,
                  'population':50,
                  'food':50,
                  'antimatter':250,
                  'money':12500,
-                 'krellmetal':16},
+                 'krellmetal':16,
+                 'needbase':False},
   'arcs': {'steel':9000,
            'unobtanium':0,
            'population':2000,
            'food':1000,
            'antimatter':500,
            'money':10000,
-           'krellmetal':0},
+           'krellmetal':0,
+           'needbase':False},
   'blackbirds': {'steel':500,
                  'unobtanium':25,
                  'population':5,
                  'food':5,
                  'antimatter':125,
                  'money':10000,
-                 'krellmetal':50},
+                 'krellmetal':50,
+                 'needbase':False},
   'merchantmen': {'steel':750,
                   'unobtanium':0,
                   'population':20,
                   'food':20,
                   'antimatter':50,
                   'money':6000,
-                  'krellmetal':0},
+                  'krellmetal':0,
+                  'needbase':False},
   'scouts': {'steel':250,
              'unobtanium':0,
              'population':5,
              'food':5,
              'antimatter':25,
              'money':250,
-             'krellmetal':0},
+             'krellmetal':0,
+             'needbase':False},
   'battleships': {'steel':4000,
                   'unobtanium':20,
                   'population':110,
                   'food':200,
                   'antimatter':655,
                   'money':25000,
-                  'krellmetal':155},
+                  'krellmetal':155,
+                  'needbase':True},
   'destroyers': {'steel':1200,
                  'unobtanium':0,
                  'population':60,
                  'food':70,
                  'antimatter':276,
                  'money':5020,
-                 'krellmetal':0},
+                 'krellmetal':0,
+                 'needbase':False},
   'frigates': {'steel':950,
                'unobtanium':0,
                'population':50,
                'food':50,
                'antimatter':200,
                'money':1250,
-               'krellmetal':0},
+               'krellmetal':0,
+               'needbase':False},
   'cruisers': {'steel':1625,
                'unobtanium':0,
                'population':80,
                'food':100,
                'antimatter':385,
                'money':15000,
-               'krellmetal':67},
+               'krellmetal':67,
+               'needbase':True},
 }
 
 UPGRADES = [
@@ -151,7 +166,8 @@ def ship_cost(manifest):
           'unobtanium': 0,
           'food': 0,
           'antimatter': 0,
-          'krellmetal': 0}
+          'krellmetal': 0,
+          'needbase': False}
   for type,quantity in manifest.items():
     cost['money'] += quantity * ALL_SHIPS[type]['money']
     cost['steel'] += quantity * ALL_SHIPS[type]['steel']
@@ -160,15 +176,22 @@ def ship_cost(manifest):
     cost['food'] += quantity * ALL_SHIPS[type]['food']
     cost['antimatter'] += quantity * ALL_SHIPS[type]['antimatter']
     cost['krellmetal'] += quantity * ALL_SHIPS[type]['krellmetal']
+
+    # if one of the ships on the list needs a military base, mark it
+    if ALL_SHIPS[type]['needbase']:
+      cost['needbase'] = True
   return cost
 
+def distance_between(locationA, locationB):
+    return math.sqrt(math.pow(abs(locationA[0]-locationB[0]), 2) +
+                     math.pow(abs(locationA[1]-locationB[1]), 2))
 
 class Planet:
   def __init__(self, galaxy, planetid, name='unknown', location=None, owner=ME):
     self.galaxy = galaxy
     self.planetid = int(planetid)
-    self.name = name
-    self.owner = owner
+    self.owner = str(owner)
+    self.name = str(name)
     self.location = location
     self._loaded = False
     self._upgrades = None
@@ -176,17 +199,25 @@ class Planet:
     return "<Planet #%d \"%s\">" % (self.planetid, self.name)
   def __getstate__(self): 
     return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
-  def load(self):
-    if self._loaded: return
-    req = self.galaxy.opener.open(URL_PLANET_DETAIL % self.planetid)
+  def load(self, force=False):
+    if not force and self._loaded: return False
+    retrycount = 0
+    while retrycount < 5:
+      retrycount = retrycount + 1
+      try:
+        req = self.galaxy.opener.open(URL_PLANET_DETAIL % self.planetid)
+        retrycount = retrycount + 5
+      except urllib2.URLError:
+        print "url error, retrying"
+        pass
+
     soup = BeautifulSoup(json.load(req)['tab'])
-    self.soup = soup
 
     self.society = int(soup('div',{'class':'info1'})[0]('div')[2].string)
     data = [x.string.strip() for x in soup('td',{'class':'planetinfo2'})]
     i = 0
     if self.name == 'unknown':
-      self.name = data[i]
+      self.name = str(data[i])
     i+=1
     self.owner=data[i]; i+=1
     if self.location == None:
@@ -221,16 +252,42 @@ class Planet:
       sys.stderr.write("loaded alien planet\n")
     self.loadUpgrades()
     self._loaded = True
-  def can_build(self, manifest):
+    return True
+  def how_many_can_build(self, manifest):
     self.load()
     cost = ship_cost(manifest)
-    return (self.money >= cost['money'] and 
-            self.steel[0] >= cost['steel'] and 
-            self.population >= cost['population'] and 
-            self.unobtanium[0] >= cost['unobtanium'] and 
-            self.food[0] >= cost['food'] and 
-            self.antimatter[0] >= cost['antimatter'] and 
-            self.krellmetal[0] >= cost['krellmetal'])
+    count = -1
+
+    has_base = self.has_active_upgrade('Military Base')
+    if cost['needbase'] and not has_base:
+      return 0
+
+    if cost['money'] > 0:
+      newcount = self.money / cost['money']
+      if (count < 0 or newcount < count): count = newcount
+    if cost['steel'] > 0:
+      newcount = self.steel[0] / cost['steel']
+      if (count < 0 or newcount < count): count = newcount
+    if cost['population'] > 0:
+      newcount = self.population / cost['population']
+      if (count < 0 or newcount < count): count = newcount
+    if cost['unobtanium'] > 0:
+      newcount = self.unobtanium[0] / cost['unobtanium']
+      if (count < 0 or newcount < count): count = newcount
+    if cost['food'] > 0:
+      newcount = self.food[0] / cost['food']
+      if (count < 0 or newcount < count): count = newcount
+    if cost['antimatter'] > 0:
+      newcount = self.antimatter[0] / cost['antimatter']
+      if (count < 0 or newcount < count): count = newcount
+    if cost['krellmetal'] > 0:
+      newcount = self.krellmetal[0] / cost['krellmetal']
+      if (count < 0 or newcount < count): count = newcount
+
+    if (count < 0): count = 0
+    return count
+  def can_build(self, manifest):
+    return self.how_many_can_build(manifest) > 0
   def build_fleet(self, manifest, interactive=False, skip_check=False):
     if skip_check or self.can_build(manifest):
       formdata = {}
@@ -283,8 +340,7 @@ class Planet:
                                                self.location[1])
     subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
   def distance_to(self, other):
-    return math.sqrt(math.pow(self.location[0]-other.location[0], 2) +
-                     math.pow(self.location[1]-other.location[1], 2))
+    return distance_between(self.location, other.location)
   def loadUpgrades(self):
     if self._upgrades: return self._upgrades
     self._upgrades = map(lambda x: UPGRADE_UNAVAILABLE, range(0,len(UPGRADES)))
@@ -305,6 +361,8 @@ class Planet:
                 self._upgrades[idx] = UPGRADE_ACTIVE
               elif '100%' in str(cells[3]):
                 self._upgrades[idx] = UPGRADE_INACTIVE
+              elif '0%' in str(cells[3]):
+                self._upgrades[idx] = UPGRADE_STARTED_0
     except urllib2.HTTPError:
       sys.stderr.write('failed to read upgrades for planet %d/n' %
                        self.planetid)
@@ -322,11 +380,27 @@ class Planet:
     self.loadUpgrades()
     index = UPGRADES.index(upgrade)
     return self.upgrades[index] > UPGRADE_AVAILABLE
+  def has_active_upgrade(self, upgrade):
+    self.loadUpgrades()
+    index = UPGRADES.index(upgrade)
+    return self.upgrades[index] == UPGRADE_ACTIVE
+  def building_upgrade_zeropercent(self, upgrade):
+    self.loadUpgrades()
+    index = UPGRADES.index(upgrade)
+    return self.upgrades[index] == UPGRADE_STARTED_0
+  def building_upgrade(self, upgrade):
+    self.loadUpgrades()
+    index = UPGRADES.index(upgrade)
+    return self.upgrades[index] == UPGRADE_STARTED or self.upgrades[index] == UPGRADE_STARTED_0
   def start_upgrade(self, upgrade):
     index = UPGRADES.index(upgrade)
+    if not self.can_upgrade(upgrade):
+      return False
+
     try:
       self.galaxy.opener.open(URL_PLANET_UPGRADE_ACTION %
                               (self.planetid, 'start', index))
+      self.upgrades[index] = UPGRADE_STARTED_0
       return True
     except urllib2.HTTPError:
       return False
@@ -335,6 +409,7 @@ class Planet:
     try:
       self.galaxy.opener.open(URL_PLANET_UPGRADE_ACTION %
                               (self.planetid, 'scrap', index))
+      self.upgrades[index] = UPGRADE_AVAILABLE
       return True
     except urllib2.HTTPError:
       return False
@@ -346,6 +421,7 @@ class Fleet:
     self.coords = coords
     self.at_planet = at
     self.home = None
+    self.disposition = None
     self._loaded = False
   def __repr__(self):
     return "<Fleet #%d%s @ (%.1f,%.1f)>" % (self.fleetid, 
@@ -354,17 +430,21 @@ class Fleet:
       self.coords[0], self.coords[1])
   def __getstate__(self): 
     return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
-  def load(self):
-    if self._loaded: return
+  def load(self, force=False):
+    if not force and self._loaded: return False
     try:
       req = self.galaxy.opener.open(URL_FLEET_DETAIL % self.fleetid)
-      soup = self.soup = BeautifulSoup(json.load(req)['pagedata'])
+      soup = BeautifulSoup(json.load(req)['pagedata'])
       home = str(soup.find(text="Home Port:").findNext('td').string)
       self.home = self.galaxy.find_planet(int(home.split('-')[1]))
       dest = str(soup.find(text="Destination:").findNext('td').string)
       self.destination = parse_coords(dest)
       if not self.destination:
-        self.destination = self.galaxy.find_planet(int(home.split('-')[1]))
+        dsplit = dest.split('-')
+        self.destination = self.galaxy.find_planet(int(dsplit[len(dsplit)-1]))
+        if not self.destination:
+          # must be headed for a unowned planet
+          self.destination = dest
       self.disposition = str(soup.find(text="Disposition:")
                              .findNext('td').string)
       try:
@@ -382,14 +462,17 @@ class Fleet:
     except IndexError:
       # stale fleet
       self.destination = None
+      self.disposition = "unknown"
       self.speed = 0.0
       self.ships = dict()
     except urllib2.HTTPError:
       # stale fleet
       self.destination = None
+      self.disposition = "unknown"
       self.speed = 0.0
       self.ships = dict()
     self._loaded = True
+    return True
 
   def move_to_planet(self, planet):
     formdata = {}
@@ -588,18 +671,56 @@ class Galaxy:
     self.write_fleet_cache()
     return fleets
     
-  def load_sector(self, location, routes=False):
+  def load_sectors(self, locationupperleft, locationlowerright, routes=False):
+    result = {}
     formdata = {}
-    sector = int(location[0] / 5) * 1000 + int(location[1] / 5)
-    formdata[str(sector)] = 1
+    unowned_planets = []
+    owned_planets = []
+    routes = {}
+
+    topx = int(locationupperleft[0])/5
+    topy = int(locationupperleft[1])/5
+    bottomx = int(locationlowerright[0])/5
+    bottomy = int(locationlowerright[1])/5
+    #print "%s,%s %s,%s" % (str(topx), str(topy), str(bottomx), str(bottomy))
+
+    for x in range(topx, bottomx+1):
+      for y in range(topy, bottomy+1):
+        sector = x * 1000 + y
+        formdata[str(sector)] = 1
     if routes:
       formdata['getnamedroutes'] = 'yes'
+    #print formdata
     req = self.opener.open(URL_SECTORS,
                            urllib.urlencode(formdata))        
     response = req.read()
+    #sys.stderr.write('%s\n' % response)
     j = json.loads(response)
-    sys.stderr.write("sector reponse %s\n" % response)
-    routes = {}
+    #print json.dumps(j, separators=(',',':'), sort_keys=True, indent=4)
+
+    # parse the result, looking for planetary data
+    secs = j["sectors"]["sectors"]
+    for secnum in secs:
+      #print "sector " + str(secnum)
+      planets = secs[secnum]["planets"]
+      for pnum in planets:
+        #print "\tplanet " + str(pnum)
+        try:
+          p = planets[pnum]
+          pid = int(p["i"])
+          owner = int(p.get("o", 0))
+          locationx = float(p["x"])
+          locationy = float(p["y"])
+          name = str(p["n"])
+          planet = Planet(self, pid, name, [ locationx, locationy ])
+          #print planet
+          if owner == 0:
+            unowned_planets.append(planet)
+          else:
+            owned_planets.append(planet)
+        except:
+          pass
+
     for key, value in j['sectors']['routes'].iteritems():
       if re.match(r'[\[,.\]0-9 ]+$', value['p']): # check input
         p = eval(value['p'])
@@ -608,7 +729,15 @@ class Galaxy:
       self._routes.update(routes)
     else:
       self._routes = routes
-    return j
+
+    result["planets"] = {}
+    result["planets"]["unowned"] = unowned_planets
+    result["planets"]["owned"] = owned_planets
+    result["routes"] = self._routes
+    return result
+
+  def load_sector(self, location):
+    self.load_sectors(location, location)
 
   def create_route(self, name, circular, *points):
     formdata = {}
@@ -629,6 +758,7 @@ class Galaxy:
       
   def write_planet_cache(self):
     # TODO: planets fail to pickle due to a lock object, write a reduce
+    print "writing planet cache..."
     self.write_cache(PLANET_CACHE_FILE, self._planets)
     return None
 
@@ -637,6 +767,7 @@ class Galaxy:
     return None
 
   def write_fleet_cache(self):
+    print "writing fleet cache..."
     self.write_cache(FLEET_CACHE_FILE, self._fleets)
     return None
 
@@ -649,17 +780,23 @@ class Galaxy:
     return None
 
   def write_cache(self, filename, data):
+    # need to bump the recursion limit to let it work
+    sys.setrecursionlimit(10000)
     try:
-      cache_file = open(filename, 'w')
+      cache_file = open(filename + ".tmp", 'w')
       pickle.dump(data, cache_file)
       cache_file.flush()
       cache_file.close()
-    except KeyError:
+      os.rename(filename + ".tmp", filename)
+    except Exception as e:
+      print "exception writing cache"
+      print type(e)
+      print e
       pass
     return None
 
   def load_cache(self, filename):
-    sys.stderr.write("loading cached data from %s\n" % filename)
+    sys.stderr.write("loading cached data from %s...\n" % filename)
     cache_data = None
     try: 
       if (time.time() - os.stat(filename).st_mtime) < CACHE_STALE_TIME:
@@ -672,6 +809,6 @@ class Galaxy:
       else:
         sys.stderr.write("cached data in %s is stale\n" % filename)
         pass
-    except KeyError:
+    except OSError:
         sys.stderr.write("cache file %s is missing or corrupt\n" % filename)
     return cache_data

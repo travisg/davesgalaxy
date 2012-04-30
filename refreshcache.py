@@ -1,9 +1,9 @@
 #!/usr/bin/env python
+# vim: set ts=2 sw=2 expandtab:
 
 import game
 from optparse import OptionParser
 import sys
-import types
 
 parser = OptionParser()
 parser.add_option("-U", "--username", dest="username",
@@ -20,28 +20,28 @@ else:
   # try to pick up stored credentials
   g.login()
 
-def dictstr(d):
-  return "(" + " ".join(
-    "%s=%s" % (str(k),str(v)) for (k,v) in d.items()) + ")"
+print "loading planets..."
+count = 0
+for p in g.planets:
+  if p.load():
+    count += 1
+    if (count % 100) == 0:
+      print "refreshed " + str(count) + " planets"
+      g.write_planet_cache()
 
-print 'ID, Disposition, Coords, Destination, Ships'
+if count > 0:
+  g.write_planet_cache()
+print "loaded " + str(len(g.planets)) + " planets"
+
+print "loading fleets..."
 count = 0
 for f in g.fleets:
   if f.load():
-	  count += 1
-	  if (count % 100) == 0:
-		  g.write_fleet_cache()
-  dest = f.destination
-  if type(dest) in (types.ListType, types.TupleType):
-    dest = '(%.1f,%.1f)' % tuple(dest)
-  else:
-    dest = str(dest)
-  print '%d %s (%.1f,%.1f)-->%s %s' % (
-    f.fleetid, f.disposition, 
-    f.coords[0], f.coords[1],
-    dest,
-    dictstr(f.ships)
-  )
+    count += 1
+    if (count % 100) == 0:
+      print "refreshed " + str(count) + " fleets"
+      g.write_fleet_cache()
 
-g.write_fleet_cache()
-
+if count > 0:
+  g.write_fleet_cache()
+print "loaded " + str(len(g.fleets)) + " fleets"
