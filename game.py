@@ -724,7 +724,10 @@ class Galaxy:
     for key, value in j['sectors']['routes'].iteritems():
       if re.match(r'[\[,.\]0-9 ]+$', value['p']): # check input
         p = eval(value['p'])
-        routes[int(key)] = Route(self, int(key), value['c'], value['n'], p)
+        n = "Unnamed Route (%d)" % int(key)
+        if 'n' in value.keys():
+          n = str(value['n'])
+        routes[int(key)] = Route(self, int(key), value['c'], n, p)
     if self._routes:
       self._routes.update(routes)
     else:
