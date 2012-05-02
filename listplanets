@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# vim: set ts=2 sw=2 expandtab:
 
 import game
 from optparse import OptionParser
@@ -20,7 +21,7 @@ else:
   g.login()
 
 count = 0
-print 'Name, ID, Society, Population, Money, Food, Steel, Tax, Tarif, Distance'
+print 'Name, ID, Society, Population, Money, Food, Steel, Tax, Tarif, Distance, Upgrades, Upgrades Avail'
 for p in g.planets:
   if p.planetid == 2774451:
 	  p._loaded = False
@@ -28,14 +29,31 @@ for p in g.planets:
 	  count += 1
 	  if (count % 100) == 0:
 		  g.write_planet_cache()
-  print '"%s", %d, %d, %d, %d, %d, %d, %.1f, %.1f, %.1f' % (
-    p.name, p.planetid, p.society, p.population, 
-    p.money, p.food[0], p.steel[0], p.tax, p.tarif, p.distance
-    )
+
+  # build list of upgrades
+  upgrades = ""
+  showcomma = False
+  for idx, status in enumerate(p.upgrades):
+    if status > game.UPGRADE_AVAILABLE:
+      if showcomma:
+        upgrades += ","
+      upgrades += game.UPGRADES[idx]
+      showcomma = True
+
+  # build list of available upgrades
+  upgrades_avail = ""
+  showcomma = False
   for idx, status in enumerate(p.upgrades):
     if status == game.UPGRADE_AVAILABLE:
-      print "\tcan build %s" % game.UPGRADES[idx]
-    elif status > game.UPGRADE_AVAILABLE:
-      print "\thas %s" % game.UPGRADES[idx]
+      if showcomma:
+        upgrades_avail += ","
+      upgrades_avail += "%s" % game.UPGRADES[idx]
+      showcomma = True
+
+  print '"%s", %d, %d, %d, %d, %d, %d, %.1f, %.1f, %.1f, {%s}, {%s}' % (
+    p.name, p.planetid, p.society, p.population,
+    p.money, p.food[0], p.steel[0], p.tax, p.tarif, p.distance,
+    upgrades, upgrades_avail
+    )
 g.write_planet_cache()
 
