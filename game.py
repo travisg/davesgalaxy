@@ -29,6 +29,7 @@ URL_MOVE_TO_PLANET = HOST + "/fleets/%d/movetoplanet/"
 URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
 URL_SCRAP_FLEET = HOST + "/fleets/%d/scrap/"
 URL_BUILD_ROUTE = HOST + '/routes/named/add/'
+URL_RENAME_ROUTE = HOST + '/routes/%d/rename/'
 URL_SECTORS = HOST + "sectors/"
 
 UPGRADE_UNAVAILABLE = 0
@@ -511,7 +512,16 @@ class Route:
     self.points = points
   def __getstate__(self): 
     return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
-
+  def rename(self, name):
+    formdata = {}
+    formdata['name'] = name
+    req = self.galaxy.opener.open(URL_RENAME_ROUTE % self.routeid,
+                                  urllib.urlencode(formdata))
+    response = req.read()
+    if 'Route Renamed' in response: 
+      self.name = name
+    return self.name
+    
 
 class Galaxy:
   def __init__(self):
@@ -704,10 +714,8 @@ class Galaxy:
       for y in range(topy, bottomy+1):
         sector = x * 1000 + y
         formdata[str(sector)] = 1
-    print routes
     if routes:
       formdata['getnamedroutes'] = 'yes'
-    print formdata
     req = self.opener.open(URL_SECTORS,
                            urllib.urlencode(formdata))        
     response = req.read()
@@ -764,15 +772,16 @@ class Galaxy:
     formdata['route'] = ','.join(map(lambda p: 
                                      '/'.join(map(lambda x: str(x), p)), 
                                      points))
-    print urllib.urlencode(formdata)
     req = self.opener.open(URL_BUILD_ROUTE,
                            urllib.urlencode(formdata))
     response = req.read()
+    route = None
     if 'Route Built' in response: 
       j = json.loads(response)
-      return int(j['sectors']['routes'].keys()[0])
-    else:
-      return None
+      routeid = int(j['sectors']['routes'].keys()[0])
+      route = Route(self, routeid, circular, name, points)
+      self.routes[routeid] = route
+    return route
       
   def write_planet_cache(self):
     # TODO: planets fail to pickle due to a lock object, write a reduce
