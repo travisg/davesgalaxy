@@ -4,6 +4,7 @@
 import game
 from optparse import OptionParser
 import sys
+import shape
 
 def main():
   parser = OptionParser()
@@ -34,9 +35,14 @@ def main():
   parser.add_option("-R", "--tr", dest="tr",
                     action="store", type="float", help="target radius to consider")
 
+  parser.add_option("-s", "--source_route", dest="source",
+                    type="string", help="route enclosing source")
+  parser.add_option("-S", "--sink_route", dest="sink",
+                    type="string", help="route enclosing sink")
+
   (options, args) = parser.parse_args()
 
-  if options.sx == None or options.sy == None:
+  if (options.sx == None or options.sy == None) and options.source == None:
     print "not enough arguments"
     parser.print_help()
     sys.exit(1)
@@ -45,6 +51,7 @@ def main():
   if options.tx == None: options.tx = options.sx
   if options.ty == None: options.ty = options.sy
   if options.tr == None: options.tr = options.sr
+  if options.sink == None: options.sink = options.source
 
   print "options " + str(options)
 
@@ -55,23 +62,38 @@ def main():
   else:
     # try to pick up stored credentials
     g.login()
+    
+  sink_shape = None
+  if options.sink != None:
+    sink_route = g.find_route(options.sink)
+    sink_shape = shape.Polygon(*(sink_route.points))
+  else:
+    sink_shape = shape.Circle([options.tx, options.ty], options.tr)
 
-  BuildArcs(g, options.doupgrade, options.maxarcs, options.perplanet, options.leave, [options.sx, options.sy], options.sr, [options.tx, options.ty], options.tr)
+  source_shape = None
+  if options.source != None:
+    source_route = g.find_route(options.source)
+    source_shape = shape.Polygon(*(source_route.points))
+  else:
+    source_shape = shape.Circle([options.sx, options.sy], options.sr)
 
-def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, scenter, sr, tcenter, tr):
+  BuildArcs(g, options.doupgrade, options.maxarcs,
+            options.perplanet, options.leave,
+            source_shape, sink_shape)
+
+def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink):
 
   # find a list of potential arc builders
   print "looking for arc builders..."
   total_arcs = 0
   arc_builders = []
   for p in g.planets:
-    dist = game.distance_between(scenter, p.location)
-    if dist < sr:
+    if source.inside(p.location):
       p.load()
       count = p.how_many_can_build({'arcs': 1})
       if count and p.society > 30 and p.population > 20000:
         print "planet " + str(p) + " can build " + str(count) + " arcs"
-        p.distance_to_target = game.distance_between(tcenter, p.location)
+        p.distance_to_target = sink.distance(p.location)
         arc_builders.append(p)
         total_arcs += count
 
@@ -82,15 +104,14 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, scenter, sr, tcenter, tr)
 
   # load the sectors around the target point
   print "looking for unowned planets at target location..."
-  sect = g.load_sectors([tcenter[0]-tr, tcenter[1]-tr], [tcenter[0]+tr, tcenter[1]+tr])
+  sect = g.load_sectors(sink.bounding_box())
   #print sect
   unowned_targets = sect["planets"]["unowned"]
 
   # trim planets to ones strictly within the radius specified
   foo = []
   for p in unowned_targets:
-    dist = game.distance_between(tcenter, p.location)
-    if dist < tr:
+    if sink.inside(p.location):
       foo.append(p)
   unowned_targets = foo
 

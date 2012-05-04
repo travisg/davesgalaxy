@@ -599,7 +599,7 @@ class Galaxy:
   @property
   def routes(self):
     if self._routes: return self._routes
-    self.load_sector([0, 0], routes=True)
+    self.load_routes()
     return self._routes
     
   @property
@@ -671,26 +671,43 @@ class Galaxy:
     self.write_fleet_cache()
     return fleets
     
-  def load_sectors(self, locationupperleft, locationlowerright, routes=False):
+  def load_routes(self):
+    formdata = {}
+    formdata['0'] = 1
+    formdata['getnamedroutes'] = 'yes'
+    req = self.opener.open(URL_SECTORS,
+                           urllib.urlencode(formdata))        
+    response = req.read()
+    j = json.loads(response)
+
+    routes = self.parse_routes(j)
+    if self._routes:
+      self._routes.update(routes)
+    else:
+      self._routes = routes
+    return self._routes
+
+  def load_sectors(self, bounding_box):
     result = {}
     formdata = {}
     unowned_planets = []
     owned_planets = []
     routes = {}
 
-    topx = int(locationupperleft[0])/5
-    topy = int(locationupperleft[1])/5
-    bottomx = int(locationlowerright[0])/5
-    bottomy = int(locationlowerright[1])/5
+    topx = int(bounding_box[0][0])/5
+    topy = int(bounding_box[0][1])/5
+    bottomx = int(bounding_box[1][0])/5
+    bottomy = int(bounding_box[1][1])/5
     #print "%s,%s %s,%s" % (str(topx), str(topy), str(bottomx), str(bottomy))
 
     for x in range(topx, bottomx+1):
       for y in range(topy, bottomy+1):
         sector = x * 1000 + y
         formdata[str(sector)] = 1
+    print routes
     if routes:
       formdata['getnamedroutes'] = 'yes'
-    #print formdata
+    print formdata
     req = self.opener.open(URL_SECTORS,
                            urllib.urlencode(formdata))        
     response = req.read()
@@ -720,24 +737,25 @@ class Galaxy:
             owned_planets.append(planet)
         except:
           pass
-
-    for key, value in j['sectors']['routes'].iteritems():
-      if re.match(r'[\[,.\]0-9 ]+$', value['p']): # check input
-        p = eval(value['p'])
-        routes[int(key)] = Route(self, int(key), value['c'], value['n'], p)
-    if self._routes:
-      self._routes.update(routes)
-    else:
-      self._routes = routes
-
     result["planets"] = {}
     result["planets"]["unowned"] = unowned_planets
     result["planets"]["owned"] = owned_planets
-    result["routes"] = self._routes
+    result["routes"] = self.parse_routes(j)
     return result
 
-  def load_sector(self, location):
-    self.load_sectors(location, location)
+  def parse_routes(self, j):
+    routes = {}
+    for key, value in j['sectors']['routes'].iteritems():
+      if re.match(r'[\[,.\]0-9 ]+$', value['p']): # check input
+        p = eval(value['p'])
+        n = "Unnamed Route (%d)" % int(key)
+        if 'n' in value.keys():
+          n = str(value['n'])
+        routes[int(key)] = Route(self, int(key), value['c'], n, p)
+    return routes
+
+  def load_sector_at(self, location):
+    return self.load_sectors([location, location])
 
   def create_route(self, name, circular, *points):
     formdata = {}
