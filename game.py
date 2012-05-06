@@ -426,7 +426,7 @@ class Fleet:
     self._loaded = False
   def __repr__(self):
     return "<Fleet #%d%s @ (%.1f,%.1f)>" % (self.fleetid, 
-      (' (%s, %d ships)' % (self.disposition, len(self.ships))) \
+      (' (%s, %d ships)' % (self.disposition, self.shipcount())) \
         if self._loaded else '',
       self.coords[0], self.coords[1])
   def __getstate__(self): 
@@ -511,7 +511,11 @@ class Fleet:
     response = req.read()
     fleet = None
     return 'Fleet Scrapped' in response
-
+  def shipcount(self):
+    count = 0
+    for s in self.ships:
+      count += self.ships[s]
+    return count
 
 class Route:
   def __init__(self, galaxy, id, circular, name, points):
