@@ -196,7 +196,7 @@ class Planet:
     self._loaded = False
     self._upgrades = None
   def __repr__(self):
-    return "<Planet #%d \"%s\">" % (self.planetid, self.name)
+    return "<Planet #%d \"%s\" owner %s>" % (self.planetid, self.name, self.owner)
   def __getstate__(self): 
     return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
   def load(self, force=False):
@@ -509,6 +509,8 @@ class Route:
     self.circular = circular
     self.name = name
     self.points = points
+  def __repr__(self):
+    return "<Route #%d \"%s\">" % (self.routeid, self.name)
   def __getstate__(self): 
     return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
 
@@ -704,10 +706,10 @@ class Galaxy:
       for y in range(topy, bottomy+1):
         sector = x * 1000 + y
         formdata[str(sector)] = 1
-    print routes
+#    print routes
     if routes:
       formdata['getnamedroutes'] = 'yes'
-    print formdata
+#    print formdata
     req = self.opener.open(URL_SECTORS,
                            urllib.urlencode(formdata))        
     response = req.read()
@@ -729,11 +731,12 @@ class Galaxy:
           locationx = float(p["x"])
           locationy = float(p["y"])
           name = str(p["n"])
-          planet = Planet(self, pid, name, [ locationx, locationy ])
           #print planet
           if owner == 0:
+            planet = Planet(self, pid, name, [ locationx, locationy ], "unowned")
             unowned_planets.append(planet)
           else:
+            planet = Planet(self, pid, name, [ locationx, locationy ], str(owner))
             owned_planets.append(planet)
         except:
           pass
