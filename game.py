@@ -26,6 +26,7 @@ URL_PLANET_MANAGE = HOST + "/planets/%d/manage/"
 URL_PLANET_BUDGET = HOST + "/planets/%d/budget/"
 URL_FLEET_DETAIL = HOST + "/fleets/%d/info/"
 URL_MOVE_TO_PLANET = HOST + "/fleets/%d/movetoplanet/"
+URL_MOVE_TO_ROUTE = HOST + "/fleets/%d/onto/"
 URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
 URL_SCRAP_FLEET = HOST + "/fleets/%d/scrap/"
 URL_BUILD_ROUTE = HOST + '/routes/named/add/'
@@ -483,6 +484,16 @@ class Fleet:
     success = 'Destination Changed' in response
     if not success:
       sys.stderr.write('%s/n' % response)
+    return success
+  def move_to_route(self, route):
+    formdata = {}
+    formdata['route' ] = route.routeid
+    #print formdata
+    req = self.galaxy.opener.open(URL_MOVE_TO_ROUTE % self.fleetid,
+                                  urllib.urlencode(formdata))
+    response = req.read()
+    #print response
+    success = 'Fleet Routed' in response
     return success
   def at(self, planet):
     if not self.at_planet:
