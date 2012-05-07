@@ -1,0 +1,128 @@
+#!/usr/bin/env python
+# vim: set ts=2 sw=2 expandtab:
+
+import game
+from optparse import OptionParser
+import sys
+import shape
+
+def main():
+  parser = OptionParser()
+  parser.add_option("-U", "--username", dest="username",
+                    help="username of login")
+  parser.add_option("-P", "--password", dest="password",
+                    help="password for login")
+  parser.add_option("-n", "--noupgrade", dest="doupgrade",
+                    action="store_false", default=True, help="dry run")
+  parser.add_option("-d", "--dest_route", dest="dest",
+                    type="string", help="destination route area")
+
+  (options, args) = parser.parse_args()
+
+  print "options " + str(options)
+
+  g=game.Galaxy()
+  if options.username and options.password:
+    # explicit login
+    g.login(options.username, options.password, force=True)
+  else:
+    # try to pick up stored credentials
+    g.login()
+
+  try:
+    dest_route = g.find_route(options.dest)
+    dest_shape = shape.Polygon(*(dest_route.points))
+  except:
+    print "could't find dest route"
+    sys.exit(1)
+
+  RedirArcs(g, options.doupgrade, dest_shape)
+
+def RedirArcs(g, doupgrade, dest_shape):
+  g.load_fleet_cache()
+
+  sect = g.load_sectors(dest_shape.bounding_box())
+
+  unowned_planets = []
+  for p in sect["planets"]["unowned"]:
+    if dest_shape.inside(p.location):
+      unowned_planets.append(p)
+  owned_planets = []
+  for p in sect["planets"]["owned"]:
+    if dest_shape.inside(p.location):
+      owned_planets.append(p)
+
+
+  print "%d owned planets in sector" % len(owned_planets)
+  print "%d unowned planets in sector" % len(unowned_planets)
+
+  # trim the list of targets to ones that dont have an arc already incoming
+  print "trimming list of unowned planets..."
+  for f in g.fleets:
+    f.load()
+    try:
+      if f.disposition == "Colonize":
+      # look for destinations in the NAME-NUMBER form
+        pnum = int(f.destination.split('-')[1])
+        for p in unowned_planets:
+          if p.planetid == pnum:
+            print "fleet " + str(f) + " already heading for dest"
+            unowned_planets.remove(p)
+            break
+    except:
+      pass
+
+  print "%d unowned planets in sector" % len(unowned_planets)
+
+  if len(unowned_planets) == 0:
+    print "all planets in destination already claimed"
+    return False
+
+  redir_arcs = []
+  for f in g.fleets:
+    f.load()
+    try:
+      if f.ships['arcs'] == 1:
+        #print "found potential arc fleet %s, destination %s" % (f, f.destination)
+
+        s = f.destination.split('-')
+        dest_planet_id = s[len(s)-1]
+
+        for p in owned_planets:
+          if int(p.planetid) == int(dest_planet_id):
+            print "found newly owned planet %s with arc %s heading for it" % (p, f)
+
+            redir_arcs.append(f)
+            break
+    except:
+      pass
+
+  print "need to redir %d arcs" % len(redir_arcs)
+
+  # sort the shortest distances for each fleet
+  for f in redir_arcs:
+    f.targets = sorted(unowned_planets, key=lambda planet: game.distance_between(f.coords, planet.location))
+
+  # iterate over all the fleets, building the shortest route of all of them
+  while len(redir_arcs) > 0:
+    # sort all of the remaining arcs by their shortest route
+    redir_arcs = sorted(redir_arcs, key=lambda fleet: game.distance_between(fleet.coords, fleet.targets[0].location))
+
+    arc = redir_arcs[0]
+    target = arc.targets[0]
+    print "moving fleet %s to planet %s, distance %f" % (arc, target, game.distance_between(arc.coords, target.location))
+    if doupgrade:
+      arc.move_to_planet(target)
+
+    # remove this fleet and this target out of all of the lists
+    redir_arcs.remove(arc)
+    for f in redir_arcs:
+      f.targets.remove(target)
+
+  for f in redir_arcs:
+    del f.targets
+
+  g.write_fleet_cache()
+
+if __name__ == "__main__":
+    main()
