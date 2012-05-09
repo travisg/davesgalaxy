@@ -146,15 +146,16 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink):
       if done:
         break
 
-      # trim the number we can build by per-planet limit
       count = p.how_many_can_build(arc);
-      if perplanet > 0 and count > perplanet:
-        count = perplanet
 
       # trim the number we can build by the min left limit
       count -= leave
       if count <= 0:
         continue
+
+      # trim the number we can build by per-planet limit
+      if perplanet > 0 and count > perplanet:
+        count = perplanet
 
       # for this builder, find the closest unowned planets
       for t in unowned_targets:
