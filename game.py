@@ -497,6 +497,9 @@ class Fleet:
     success = 'Destination Changed' in response
     if not success:
       sys.stderr.write('%s/n' % response)
+
+    # force a reload to get any new destination
+    self.load(True)
     return success
   def move_to_route(self, route):
     formdata = {}
@@ -507,6 +510,9 @@ class Fleet:
     response = req.read()
     #print response
     success = 'Fleet Routed' in response
+
+    # force a reload to get any new destination
+    self.load(True)
     return success
   def at(self, planet):
     if not self.at_planet:
