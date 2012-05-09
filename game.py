@@ -794,14 +794,13 @@ class Galaxy:
   def load_sector_at(self, location):
     return self.load_sectors([location, location])
 
-  def create_route(self, name, circular, *points):
+  def create_route(self, name, circular, points):
     formdata = {}
     formdata['name'] = name
     formdata['circular'] = str(circular).lower()
     formdata['route'] = ','.join(map(lambda p: 
                                      '/'.join(map(lambda x: str(x), p)), 
                                      points))
-    print urllib.urlencode(formdata)
     req = self.opener.open(URL_BUILD_ROUTE,
                            urllib.urlencode(formdata))
     response = req.read()
