@@ -14,6 +14,8 @@ def main():
                     help="password for login")
   parser.add_option("-n", "--noupgrade", dest="doupgrade",
                     action="store_false", default=True, help="dry run")
+  parser.add_option("-s", "--source_route", dest="source",
+                    type="string", help="source route area")
   parser.add_option("-d", "--dest_route", dest="dest",
                     type="string", help="destination route area")
 
@@ -36,45 +38,84 @@ def main():
     print "could't find dest route"
     sys.exit(1)
 
-  RedirArcs(g, options.doupgrade, dest_shape)
-
-def RedirArcs(g, doupgrade, dest_shape):
   g.load_fleet_cache()
 
-  sect = g.load_sectors(dest_shape.bounding_box())
+  RedirArcsFromOwned(g, options.doupgrade, dest_shape)
 
-  unowned_planets = []
-  for p in sect["planets"]["unowned"]:
-    if dest_shape.inside(p.location):
-      unowned_planets.append(p)
-  owned_planets = []
-  for p in sect["planets"]["owned"]:
-    if dest_shape.inside(p.location):
-      owned_planets.append(p)
+#  try:
+#    source_route = g.find_route(options.source)
+#    source_shape = shape.Polygon(*(source_route.points))
+#  except:
+#    print "could't find source route"
+#    sys.exit(1)
 
+  #RedirArcsFromSource(g, options.doupgrade, source_shape, dest_shape)
 
-  print "%d owned planets in sector" % len(owned_planets)
-  print "%d unowned planets in sector" % len(unowned_planets)
+  g.write_fleet_cache()
 
-  # trim the list of targets to ones that dont have an arc already incoming
-  print "trimming list of unowned planets..."
+# redirect all arcs with targets in source shape into dest shape
+def RedirArcsFromSource(g, doupgrade, source_shape, dest_shape):
+
+  print "finding planets in source sector..."
+  source_targets = FindUnownedPlanetsInShape(g, source_shape)
+  print "%d unowned planets in source sector" % len(source_targets)
+
+  print "finding planets in target sector..."
+  targets = FindUnownedPlanetsInShape(g, dest_shape)
+  print "%d unowned planets in target sector" % len(targets)
+
+  print "removing overlap planets from source..."
+  for p in targets:
+    for s in source_targets:
+      if p.planetid == s.planetid:
+        targets.remove(p)
+
+  print "%d unowned planets in target sector" % len(targets)
+
+  print "removing already targetted planets in target sector..."
+  targets = TrimColonyTargettedPlanets(g, targets)
+  print "%d unowned planets in target sector" % len(targets)
+
+  if len(targets) == 0:
+    print "all planets in destination already claimed"
+    return False
+
+  redir_arcs = []
   for f in g.fleets:
     f.load()
     try:
-      if f.disposition == "Colonize":
-      # look for destinations in the NAME-NUMBER form
-        pnum = int(f.destination.split('-')[1])
-        for p in unowned_planets:
-          if p.planetid == pnum:
-            print "fleet " + str(f) + " already heading for dest"
-            unowned_planets.remove(p)
+      if f.ships['arcs'] == 1:
+        #print "found potential arc fleet %s, destination %s" % (f, f.destination)
+
+        s = f.destination.split('-')
+        dest_planet_id = s[len(s)-1]
+
+        for p in source_targets:
+          if int(p.planetid) == int(dest_planet_id):
+            print "found arc %s heading into source space" % f
+
+            redir_arcs.append(f)
             break
     except:
       pass
 
-  print "%d unowned planets in sector" % len(unowned_planets)
 
-  if len(unowned_planets) == 0:
+  print "%d arcs to redirect from source" % len(redir_arcs)
+
+  RedirArcs(g, doupgrade, redir_arcs, targets)
+
+# redirect arcs away from owned planets
+def RedirArcsFromOwned(g, doupgrade, dest_shape):
+
+  targets = FindUnownedPlanetsInShape(g, dest_shape)
+  owned_planets = FindOwnedPlanetsInShape(g, dest_shape)
+
+  print "%d unowned planets in sector" % len(targets)
+
+  targets = TrimColonyTargettedPlanets(g, targets)
+  print "%d unowned planets in sector after trimming colony targets" % len(targets)
+
+  if len(targets) == 0:
     print "all planets in destination already claimed"
     return False
 
@@ -97,32 +138,71 @@ def RedirArcs(g, doupgrade, dest_shape):
     except:
       pass
 
-  print "need to redir %d arcs" % len(redir_arcs)
+  RedirArcs(g, doupgrade, redir_arcs, targets)
+
+def RedirArcs(g, doupgrade, arc_fleets, targets):
+  print "need to redir %d arcs" % len(arc_fleets)
 
   # sort the shortest distances for each fleet
-  for f in redir_arcs:
-    f.targets = sorted(unowned_planets, key=lambda planet: game.distance_between(f.coords, planet.location))
+  for f in arc_fleets:
+    f.targets = sorted(targets, key=lambda planet: game.distance_between(f.coords, planet.location))
 
   # iterate over all the fleets, building the shortest route of all of them
-  while len(redir_arcs) > 0:
+  while len(arc_fleets) > 0:
     # sort all of the remaining arcs by their shortest route
-    redir_arcs = sorted(redir_arcs, key=lambda fleet: game.distance_between(fleet.coords, fleet.targets[0].location))
+    arc_fleets = sorted(arc_fleets, key=lambda fleet: game.distance_between(fleet.coords, fleet.targets[0].location))
 
-    arc = redir_arcs[0]
+    arc = arc_fleets[0]
     target = arc.targets[0]
     print "moving fleet %s to planet %s, distance %f" % (arc, target, game.distance_between(arc.coords, target.location))
     if doupgrade:
       arc.move_to_planet(target)
 
     # remove this fleet and this target out of all of the lists
-    redir_arcs.remove(arc)
-    for f in redir_arcs:
+    arc_fleets.remove(arc)
+    for f in arc_fleets:
       f.targets.remove(target)
 
-  for f in redir_arcs:
+  for f in arc_fleets:
     del f.targets
 
-  g.write_fleet_cache()
+def FindUnownedPlanetsInShape(g, shape):
+  sect = g.load_sectors(shape.bounding_box())
+
+  planets = []
+  for p in sect["planets"]["unowned"]:
+    if shape.inside(p.location):
+      planets.append(p)
+
+  return planets
+
+def FindOwnedPlanetsInShape(g, shape):
+  sect = g.load_sectors(shape.bounding_box())
+
+  planets = []
+  for p in sect["planets"]["owned"]:
+    if shape.inside(p.location):
+      planets.append(p)
+
+  return planets
+
+def TrimColonyTargettedPlanets(g, targets):
+  # trim the list of targets to ones that dont have an arc already incoming
+  for f in g.fleets:
+    f.load()
+    try:
+      if f.disposition == "Colonize":
+      # look for destinations in the NAME-NUMBER form
+        pnum = int(f.destination.split('-')[1])
+        for p in targets:
+          if p.planetid == pnum:
+            #print "fleet " + str(f) + " already heading for dest"
+            targets.remove(p)
+            break
+    except:
+      pass
+
+  return targets
 
 if __name__ == "__main__":
     main()
