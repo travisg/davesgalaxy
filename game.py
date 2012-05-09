@@ -433,45 +433,58 @@ class Fleet:
     return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
   def load(self, force=False):
     if not force and self._loaded: return False
-    try:
-      req = self.galaxy.opener.open(URL_FLEET_DETAIL % self.fleetid)
-      soup = BeautifulSoup(json.load(req)['pagedata'])
-      home = str(soup.find(text="Home Port:").findNext('td').string)
-      self.home = self.galaxy.find_planet(int(home.split('-')[1]))
-      dest = str(soup.find(text="Destination:").findNext('td').string)
-      self.destination = parse_coords(dest)
-      if not self.destination:
-        dsplit = dest.split('-')
-        self.destination = self.galaxy.find_planet(int(dsplit[len(dsplit)-1]))
+    retry = 0
+    done = False
+    while not done:
+      retry += 1
+      if retry >= 5:
+        return False
+      done = True
+      try:
+        req = self.galaxy.opener.open(URL_FLEET_DETAIL % self.fleetid)
+        soup = BeautifulSoup(json.load(req)['pagedata'])
+        home = str(soup.find(text="Home Port:").findNext('td').string)
+        self.home = self.galaxy.find_planet(int(home.split('-')[1]))
+        dest = str(soup.find(text="Destination:").findNext('td').string)
+        self.destination = parse_coords(dest)
         if not self.destination:
-          # must be headed for a unowned planet
-          self.destination = dest
-      self.disposition = str(soup.find(text="Disposition:")
+          dsplit = dest.split('-')
+          self.destination = self.galaxy.find_planet(int(dsplit[len(dsplit)-1]))
+          if not self.destination:
+            # must be headed for a unowned planet
+            self.destination = dest
+        self.disposition = str(soup.find(text="Disposition:")
+                               .findNext('td').string)
+        try:
+          self.speed = float(soup.find(text="Current Speed:")
                              .findNext('td').string)
-      try:
-        self.speed = float(soup.find(text="Current Speed:")
-                           .findNext('td').string)
-      except: self.speed = 0
-      self.ships = dict()
-      try:
-        for k,v in pairs(soup('h3')[0].findAllNext('td')):
-          shiptype = re.match(r'[a-z]+', k.string).group()
-          if not shiptype in ALL_SHIPS.keys(): continue
-          self.ships[shiptype] = int(v.string)
+        except: self.speed = 0
+        self.ships = dict()
+        try:
+          for k,v in pairs(soup('h3')[0].findAllNext('td')):
+            shiptype = re.match(r'[a-z]+', k.string).group()
+            if not shiptype in ALL_SHIPS.keys(): continue
+            self.ships[shiptype] = int(v.string)
+        except IndexError:
+          pass  # empty fleet
       except IndexError:
-        pass  # emply fleet
-    except IndexError:
-      # stale fleet
-      self.destination = None
-      self.disposition = "unknown"
-      self.speed = 0.0
-      self.ships = dict()
-    except urllib2.HTTPError:
-      # stale fleet
-      self.destination = None
-      self.disposition = "unknown"
-      self.speed = 0.0
-      self.ships = dict()
+        # stale fleet
+        self.destination = None
+        self.disposition = "unknown"
+        self.speed = 0.0
+        self.ships = dict()
+      except urllib2.HTTPError:
+        # stale fleet
+        self.destination = None
+        self.disposition = "unknown"
+        self.speed = 0.0
+        self.ships = dict()
+      except urllib2.URLError:
+        # http error with the server
+        print "http error, retrying"
+        time.sleep(1)
+        done = False
+
     self._loaded = True
     return True
 
