@@ -6,6 +6,7 @@ import os
 import pickle
 import re
 import subprocess
+import shape
 import sys
 import time
 import types
@@ -26,6 +27,7 @@ URL_PLANET_MANAGE = HOST + "/planets/%d/manage/"
 URL_PLANET_BUDGET = HOST + "/planets/%d/budget/"
 URL_FLEET_DETAIL = HOST + "/fleets/%d/info/"
 URL_MOVE_TO_PLANET = HOST + "/fleets/%d/movetoplanet/"
+URL_MOVE_TO_ROUTE = HOST + "/fleets/%d/onto/"
 URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
 URL_SCRAP_FLEET = HOST + "/fleets/%d/scrap/"
 URL_BUILD_ROUTE = HOST + '/routes/named/add/'
@@ -474,7 +476,6 @@ class Fleet:
       self.ships = dict()
     self._loaded = True
     return True
-
   def move_to_planet(self, planet):
     formdata = {}
     formdata['planet' ] = planet.planetid
@@ -482,6 +483,21 @@ class Fleet:
                                   urllib.urlencode(formdata))
     response = req.read()
     success = 'Destination Changed' in response
+    if not success:
+      sys.stderr.write('%s/n' % response)
+    return success
+  def move_to_route(self, route, insertion_point=None):
+    formdata = {}
+    formdata['route' ] = route.routeid
+    if insertion_point == None:
+      route_shape = shape.Polygon(*(route.points))
+      insertion_point = route_shape.nearest_to(self.coords)
+    formdata['sx'] = insertion_point[0]
+    formdata['sy'] = insertion_point[1]
+    req = self.galaxy.opener.open(URL_MOVE_TO_ROUTE % self.fleetid,
+                                  urllib.urlencode(formdata))
+    response = req.read()
+    success = 'Fleet Routed' in response
     if not success:
       sys.stderr.write('%s/n' % response)
     return success
@@ -644,6 +660,8 @@ class Galaxy:
         i += 1
       except urllib2.HTTPError:
         break
+      except KeyError:
+        break
     self._planets = planets
     self.write_planet_cache()
     return planets
@@ -676,6 +694,8 @@ class Galaxy:
           fleets.append(Fleet(self, fleetid, coords, at=at_planet))
         i += 1
       except urllib2.HTTPError:
+        break
+      except KeyError:
         break
     self._fleets = fleets
     self.write_fleet_cache()
