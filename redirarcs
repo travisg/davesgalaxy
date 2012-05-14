@@ -48,8 +48,8 @@ def main():
 #  except:
 #    print "could't find source route"
 #    sys.exit(1)
-
-  #RedirArcsFromSource(g, options.doupgrade, source_shape, dest_shape)
+#
+#  RedirArcsFromSource(g, options.doupgrade, source_shape, dest_shape)
 
   g.write_fleet_cache()
 
@@ -57,8 +57,8 @@ def main():
 def RedirArcsFromSource(g, doupgrade, source_shape, dest_shape):
 
   print "finding planets in source sector..."
-  source_targets = FindUnownedPlanetsInShape(g, source_shape)
-  print "%d unowned planets in source sector" % len(source_targets)
+  source_targets = FindAllPlanetsInShape(g, source_shape)
+  print "%d planets in source sector" % len(source_targets)
 
   print "finding planets in target sector..."
   targets = FindUnownedPlanetsInShape(g, dest_shape)
@@ -181,6 +181,19 @@ def FindOwnedPlanetsInShape(g, shape):
 
   planets = []
   for p in sect["planets"]["owned"]:
+    if shape.inside(p.location):
+      planets.append(p)
+
+  return planets
+
+def FindAllPlanetsInShape(g, shape):
+  sect = g.load_sectors(shape.bounding_box())
+
+  planets = []
+  for p in sect["planets"]["owned"]:
+    if shape.inside(p.location):
+      planets.append(p)
+  for p in sect["planets"]["unowned"]:
     if shape.inside(p.location):
       planets.append(p)
 
