@@ -6,6 +6,7 @@ import os
 import pickle
 import re
 import subprocess
+import shape
 import sys
 import time
 import types
@@ -30,6 +31,7 @@ URL_MOVE_TO_ROUTE = HOST + "/fleets/%d/onto/"
 URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
 URL_SCRAP_FLEET = HOST + "/fleets/%d/scrap/"
 URL_BUILD_ROUTE = HOST + '/routes/named/add/'
+URL_RENAME_ROUTE = HOST + '/routes/%d/rename/'
 URL_SECTORS = HOST + "sectors/"
 
 UPGRADE_UNAVAILABLE = 0
@@ -487,7 +489,6 @@ class Fleet:
 
     self._loaded = True
     return True
-
   def move_to_planet(self, planet):
     formdata = {}
     formdata['planet' ] = planet.planetid
@@ -501,16 +502,20 @@ class Fleet:
     # force a reload to get any new destination
     self.load(True)
     return success
-  def move_to_route(self, route):
+  def move_to_route(self, route, insertion_point=None):
     formdata = {}
     formdata['route' ] = route.routeid
-    #print formdata
+    if insertion_point == None:
+      route_shape = shape.Polygon(*(route.points))
+      insertion_point = route_shape.nearest_to(self.coords)
+    formdata['sx'] = insertion_point[0]
+    formdata['sy'] = insertion_point[1]
     req = self.galaxy.opener.open(URL_MOVE_TO_ROUTE % self.fleetid,
                                   urllib.urlencode(formdata))
     response = req.read()
-    #print response
     success = 'Fleet Routed' in response
-
+    if not success:
+      sys.stderr.write('%s/n' % response)
     # force a reload to get any new destination
     self.load(True)
     return success
@@ -547,7 +552,16 @@ class Route:
     return "<Route #%d \"%s\">" % (self.routeid, self.name)
   def __getstate__(self): 
     return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
-
+  def rename(self, name):
+    formdata = {}
+    formdata['name'] = name
+    req = self.galaxy.opener.open(URL_RENAME_ROUTE % self.routeid,
+                                  urllib.urlencode(formdata))
+    response = req.read()
+    if 'Route Renamed' in response: 
+      self.name = name
+    return self.name
+    
 
 class Galaxy:
   def __init__(self):
@@ -670,6 +684,8 @@ class Galaxy:
         i += 1
       except urllib2.HTTPError:
         break
+      except KeyError:
+        break
     self._planets = planets
     self.write_planet_cache()
     return planets
@@ -702,6 +718,8 @@ class Galaxy:
           fleets.append(Fleet(self, fleetid, coords, at=at_planet))
         i += 1
       except urllib2.HTTPError:
+        break
+      except KeyError:
         break
     self._fleets = fleets
     self.write_fleet_cache()
@@ -740,10 +758,8 @@ class Galaxy:
       for y in range(topy, bottomy+1):
         sector = x * 1000 + y
         formdata[str(sector)] = 1
-#    print routes
     if routes:
       formdata['getnamedroutes'] = 'yes'
-#    print formdata
     req = self.opener.open(URL_SECTORS,
                            urllib.urlencode(formdata))        
     response = req.read()
@@ -804,11 +820,13 @@ class Galaxy:
     req = self.opener.open(URL_BUILD_ROUTE,
                            urllib.urlencode(formdata))
     response = req.read()
+    route = None
     if 'Route Built' in response: 
       j = json.loads(response)
-      return int(j['sectors']['routes'].keys()[0])
-    else:
-      return None
+      routeid = int(j['sectors']['routes'].keys()[0])
+      route = Route(self, routeid, circular, name, points)
+      self.routes[routeid] = route
+    return route
       
   def write_planet_cache(self):
     # TODO: planets fail to pickle due to a lock object, write a reduce
