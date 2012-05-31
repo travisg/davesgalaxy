@@ -28,6 +28,7 @@ URL_PLANET_BUDGET = HOST + "/planets/%d/budget/"
 URL_FLEET_DETAIL = HOST + "/fleets/%d/info/"
 URL_MOVE_TO_PLANET = HOST + "/fleets/%d/movetoplanet/"
 URL_MOVE_TO_ROUTE = HOST + "/fleets/%d/onto/"
+URL_MOVE_ROUTE_TO = HOST + "/fleets/%d/routeto/"
 URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
 URL_SCRAP_FLEET = HOST + "/fleets/%d/scrap/"
 URL_BUILD_ROUTE = HOST + '/routes/named/add/'
@@ -501,6 +502,21 @@ class Fleet:
     if not success:
       sys.stderr.write('%s/n' % response)
     return success
+  def route_to(self, points, planetid=None):
+    formdata = {}
+    formdata['circular'] = False
+    formdata['route'] = ','.join(map(lambda p: 
+                                     '/'.join(map(lambda x: str(x), p)), 
+                                     points))
+    if planetid:
+      formdata['route'] = "%s, %s" % (formdata['route'], str(planetid))
+    req = self.galaxy.opener.open(URL_MOVE_ROUTE_TO % self.fleetid,
+                                  urllib.urlencode(formdata))
+    response = req.read()
+    success = 'Fleet Routed' in response
+    if not success:
+      sys.stderr.write('%s/n' % response)
+    return success
   def at(self, planet):
     if not self.at_planet:
       return False
@@ -580,6 +596,14 @@ class Galaxy:
       except KeyError:
         return None
 
+  def find_fleet(self, query):
+    if type(query) == types.IntType:
+      for f in self.fleets:
+        if query == f.fleetid:
+          return f
+      return None
+    return None
+    
   def find_planet(self, query):
     if type(query) == types.StringType:
       for p in self.planets:
