@@ -52,13 +52,11 @@ def collectsteel(g, sink, radius, type):
         surplus += 1
       surplus -= 1
       if surplus > 0:
-        print "%s can build %d %s" % (p.name, surplus, type)
         fleet = p.build_fleet({type: surplus},
                               interactive=False,
                               skip_check=True)
         if fleet:
           total += surplus
-          print "moving %d to %s" % (fleet.fleetid, sink.name)
           fleet.move_to_planet(sink)
         else:
           print "build failed."
