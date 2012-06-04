@@ -57,10 +57,10 @@ def main():
 def BuildPatrol(g, source, route, manifest, maximum, noop=False):
 
   count = source.how_many_can_build(manifest)
-  count = min(maximum, count)
-  for key in manifest.keys():
-    manifest[key] = int(count * manifest[key])
-  print "planet " + str(source) + " can build " + str(manifest) + " ships"
+  canbuild = manifest.copy()
+  for key in canbuild.keys():
+    canbuild[key] = int(count * canbuild[key])
+  print "planet " + str(source) + " can build " + str(canbuild) + " ships"
 
   count = min(maximum, count)
   for key in manifest.keys():
