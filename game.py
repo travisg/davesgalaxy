@@ -293,6 +293,7 @@ class Planet:
   def can_build(self, manifest):
     return self.how_many_can_build(manifest) > 0
   def build_fleet(self, manifest, interactive=False, skip_check=False):
+    fleet = None
     if skip_check or self.can_build(manifest):
       formdata = {}
       formdata['submit-build-%d' % self.planetid] = 1
@@ -302,7 +303,6 @@ class Planet:
       req = self.galaxy.opener.open(URL_BUILD_FLEET % self.planetid,
                                     urllib.urlencode(formdata))
       response = req.read()
-      fleet = None
       if 'Fleet Built' in response: 
         j = json.loads(response)
         fleet = Fleet(self.galaxy,
@@ -323,8 +323,10 @@ class Planet:
         if interactive:
           js = 'javascript:handleserverresponse(%s);' % response
           subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
+      else:
+        sys.stderr.write('%s\n' % response)
     else:
-      sys.stderr.write('%s\n' % response)
+      sys.stderr.write('cannot build %s\n' % str(manifest))
     return fleet
   def scrap_fleet(self, fleet):
     if fleet.scrap() and self._loaded and fleet._loaded:
