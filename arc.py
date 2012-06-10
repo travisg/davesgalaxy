@@ -91,7 +91,7 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink):
     if source.inside(p.location):
       p.load()
       count = p.how_many_can_build({'arcs': 1})
-      if count and p.society > 30 and p.population > 20000:
+      if count and p.society > 40 and p.population > 20000:
         print "planet " + str(p) + " can build " + str(count) + " arcs"
         p.distance_to_target = sink.distance(p.location)
         arc_builders.append(p)
