@@ -38,17 +38,22 @@ def main():
     print "could't find dest route"
     sys.exit(1)
 
+  source_shape = None
+  try:
+    source_route = g.find_route(options.source)
+    source_shape = shape.Polygon(*(source_route.points))
+  except:
+    pass
+
   g.load_fleet_cache()
 
   RedirArcsFromOwned(g, options.doupgrade, dest_shape)
+  RedirReturningArcs(g, options.doupgrade, source_shape, dest_shape)
 
-#  try:
-#    source_route = g.find_route(options.source)
-#    source_shape = shape.Polygon(*(source_route.points))
-#  except:
+#  if source_shape == None:
 #    print "could't find source route"
 #    sys.exit(1)
-#
+
 #  RedirArcsFromSource(g, options.doupgrade, source_shape, dest_shape)
 
   g.write_fleet_cache()
@@ -87,8 +92,7 @@ def RedirArcsFromSource(g, doupgrade, source_shape, dest_shape):
       if f.ships['arcs'] == 1:
         #print "found potential arc fleet %s, destination %s" % (f, f.destination)
 
-        s = f.destination.split('-')
-        dest_planet_id = s[len(s)-1]
+        dest_planet_id = FleetDestToPlanetID(f.destination)
 
         for p in source_targets:
           if int(p.planetid) == int(dest_planet_id):
@@ -101,6 +105,39 @@ def RedirArcsFromSource(g, doupgrade, source_shape, dest_shape):
 
 
   print "%d arcs to redirect from source" % len(redir_arcs)
+
+  RedirArcs(g, doupgrade, redir_arcs, targets)
+
+# redirect arcs with their home as their target
+def RedirReturningArcs(g, doupgrade, source_shape, dest_shape):
+
+  targets = FindUnownedPlanetsInShape(g, dest_shape)
+  owned_planets = FindOwnedPlanetsInShape(g, dest_shape)
+
+  print "%d unowned planets in sector" % len(targets)
+
+  targets = TrimColonyTargettedPlanets(g, targets)
+  print "%d unowned planets in sector after trimming colony targets" % len(targets)
+
+  if len(targets) == 0:
+    print "all planets in destination already claimed"
+    return False
+
+  redir_arcs = []
+  for f in g.fleets:
+    f.load()
+    if f.ships.get('arcs', 0) > 0:
+      #print "found potential arc fleet %s, destination %s" % (f, f.destination)
+
+      dest_planet_id = FleetDestToPlanetID(f.destination)
+
+      #print "fleet %s dest %s home %s" % (f, str(dest_planet_id), str(f.home.planetid))
+
+      if source_shape == None or source_shape.inside(f.coords):
+        if dest_planet_id == f.home.planetid:
+          print "found returning arc %s" % f
+
+          redir_arcs.append(f)
 
   RedirArcs(g, doupgrade, redir_arcs, targets)
 
@@ -126,8 +163,7 @@ def RedirArcsFromOwned(g, doupgrade, dest_shape):
       if f.ships['arcs'] == 1:
         #print "found potential arc fleet %s, destination %s" % (f, f.destination)
 
-        s = f.destination.split('-')
-        dest_planet_id = s[len(s)-1]
+        dest_planet_id = FleetDestToPlanetID(f.destination)
 
         for p in owned_planets:
           if int(p.planetid) == int(dest_planet_id):
@@ -141,14 +177,14 @@ def RedirArcsFromOwned(g, doupgrade, dest_shape):
   RedirArcs(g, doupgrade, redir_arcs, targets)
 
 def RedirArcs(g, doupgrade, arc_fleets, targets):
-  print "need to redir %d arcs" % len(arc_fleets)
+  print "redirecting %d arcs to %d targets" % (len(arc_fleets), len(targets))
 
   # sort the shortest distances for each fleet
   for f in arc_fleets:
     f.targets = sorted(targets, key=lambda planet: game.distance_between(f.coords, planet.location))
 
   # iterate over all the fleets, building the shortest route of all of them
-  while len(arc_fleets) > 0:
+  while len(arc_fleets) > 0 and len(targets) > 0:
     # sort all of the remaining arcs by their shortest route
     arc_fleets = sorted(arc_fleets, key=lambda fleet: game.distance_between(fleet.coords, fleet.targets[0].location))
 
@@ -162,6 +198,9 @@ def RedirArcs(g, doupgrade, arc_fleets, targets):
     arc_fleets.remove(arc)
     for f in arc_fleets:
       f.targets.remove(target)
+
+    # trim the master target list
+    targets.remove(target)
 
   for f in arc_fleets:
     del f.targets
@@ -216,6 +255,24 @@ def TrimColonyTargettedPlanets(g, targets):
       pass
 
   return targets
+
+def FleetDestToPlanetID(destination):
+  # if it's a real planet target, get the id
+  dest_planet_id = None
+  try:
+    dest_planet_id = int(destination.planetid)
+  except:
+    pass
+
+  # if its a string target, try to extract the planetid from it
+  if dest_planet_id == None:
+    try:
+      s = destination.split('-')
+      dest_planet_id = int(s[len(s)-1])
+    except:
+      pass
+
+  return dest_planet_id
 
 if __name__ == "__main__":
     main()
