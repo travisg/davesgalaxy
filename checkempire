@@ -1,0 +1,46 @@
+#!/usr/bin/env python
+
+import json
+from optparse import OptionParser
+import os
+import sys
+
+parser = OptionParser()
+parser.add_option("-m", "--mine", dest="mine",
+                  help="your owner id",
+                  default=1)
+(options, args) = parser.parse_args()
+
+if len(args) == 0:
+   print 'usage: %s sectors/*.json' % sys.argv[0]
+   sys.exit(1)
+
+for filename in args:
+   f = open(filename, 'r')
+   j = json.load(f)
+   secs = j["sectors"]["sectors"]
+   for secnum in secs:
+      planets = secs[secnum]["planets"]
+      for pnum in planets:
+         p = planets[pnum]
+         owner = int(p.get("o", 0))
+         x = float(p["x"])
+         y = float(p["y"])
+         name = str(p["n"])
+         owner_name = 'nobody'
+         size = 0.01
+         name = 'x'
+         if owner == options.mine:
+            owner_name = 'mine'
+            size = 0.5
+            name = 'm'
+         elif owner != 0:
+            owner_name = 'theirs'
+            size = 0.1
+            name = 't'
+
+         print '%s, %d, %d, %s, %d' % (
+            name,
+            x, y,
+            owner_name,
+            size)

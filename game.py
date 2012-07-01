@@ -324,7 +324,7 @@ class Planet:
           js = 'javascript:handleserverresponse(%s);' % response
           subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
       else:
-        sys.stderr.write('%s\n' % response)
+        sys.stderr.write('error when building')
     else:
       sys.stderr.write('cannot build %s\n' % str(manifest))
     return fleet
@@ -535,6 +535,10 @@ class Fleet:
     response = req.read()
     fleet = None
     return 'Fleet Scrapped' in response
+  def view(self):
+    js = 'javascript:gm.centermap(%d, %d);' % (self.coords[0],
+                                               self.coords[1])
+    subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
 
 
 class Route:
@@ -661,6 +665,7 @@ class Galaxy:
     self.load_planet_cache()
     if self._planets: return self._planets
     
+    sys.stderr.write('no planet cache\n')
     i=1
     planets = []
     while True:
@@ -685,8 +690,10 @@ class Galaxy:
           planets.append(Planet(self, planetid, name, location))
         i += 1
       except urllib2.HTTPError:
+        sys.stderr.write('http error\n')
         break
       except KeyError:
+        sys.stderr.write('key error\n')
         break
     self._planets = planets
     self.write_planet_cache()
@@ -743,7 +750,7 @@ class Galaxy:
       self._routes = routes
     return self._routes
 
-  def load_sectors(self, bounding_box):
+  def load_raw_sectors(self, bounding_box):
     result = {}
     formdata = {}
     unowned_planets = []
@@ -766,8 +773,10 @@ class Galaxy:
                            urllib.urlencode(formdata))        
     response = req.read()
     #sys.stderr.write('%s\n' % response)
-    j = json.loads(response)
-    #print json.dumps(j, separators=(',',':'), sort_keys=True, indent=4)
+    return response
+
+  def load_sectors(self, bounding_box):
+    j = json.loads(self.load_raw_sectors(bounding_box))
 
     # parse the result, looking for planetary data
     secs = j["sectors"]["sectors"]
@@ -810,6 +819,9 @@ class Galaxy:
 
   def load_sector_at(self, location):
     return self.load_sectors([location, location])
+
+  def load_raw_sector_at(self, location):
+    return self.load_raw_sectors([location, location])
 
   def create_route(self, name, circular, *points):
     formdata = {}
