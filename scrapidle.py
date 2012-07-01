@@ -34,12 +34,12 @@ def main():
     sink = g.get_planet(int(sink_opt))
   except ValueError:
     sink = g.find_planet(sink_opt)
-  sink.load()
   print "using planet %d with name %s" % (sink.planetid, sink.name)
 
   scrapidle(g, sink, options.type)
 
 def scrapidle(g, sink, type):
+  sink.load()
   steel = sink.steel[0]
   print 'Looking for mule fleets of type %s at %s.' % (
     type, sink.name)
