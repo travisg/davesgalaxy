@@ -8,7 +8,7 @@ import sys
 parser = OptionParser()
 parser.add_option("-m", "--mine", dest="mine",
                   help="your owner id",
-                  default=1)
+                  default=1, type="int")
 (options, args) = parser.parse_args()
 
 if len(args) == 0:
@@ -25,20 +25,17 @@ for filename in args:
          p = planets[pnum]
          owner = int(p.get("o", 0))
          x = float(p["x"])
-         y = float(p["y"])
+         y = - float(p["y"])
          name = str(p["n"])
          owner_name = 'nobody'
-         size = 0.01
-         name = 'x'
+         size = 0
          if owner == options.mine:
             owner_name = 'mine'
-            size = 0.5
-            name = 'm'
+            size = 1
          elif owner != 0:
             owner_name = 'theirs'
-            size = 0.1
-            name = 't'
-
+            size = 0
+         
          print '%s, %d, %d, %s, %d' % (
             name,
             x, y,
