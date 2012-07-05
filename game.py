@@ -53,7 +53,7 @@ ALL_SHIPS = {
                        'population':150,
                        'food':300,
                        'antimatter':1050,
-                       'money':75000,
+                       'money':32485,
                        'krellmetal':290,
                        'needbase':True},
   'bulkfreighters': {'steel':2500,
@@ -61,7 +61,7 @@ ALL_SHIPS = {
                      'population':20,
                      'food':20,
                      'antimatter':50,
-                     'money':1500,
+                     'money':5649,
                      'krellmetal':0,
                      'needbase':False},
   'subspacers': {'steel':625,
@@ -69,15 +69,15 @@ ALL_SHIPS = {
                  'population':50,
                  'food':50,
                  'antimatter':250,
-                 'money':12500,
+                 'money':5414,
                  'krellmetal':16,
                  'needbase':False},
-  'arcs': {'steel':9000,
+  'arcs': {'steel':10000,
            'unobtanium':0,
            'population':2000,
            'food':1000,
            'antimatter':500,
-           'money':10000,
+           'money':4331,
            'krellmetal':0,
            'needbase':False},
   'blackbirds': {'steel':500,
@@ -85,7 +85,7 @@ ALL_SHIPS = {
                  'population':5,
                  'food':5,
                  'antimatter':125,
-                 'money':10000,
+                 'money':4331,
                  'krellmetal':50,
                  'needbase':False},
   'merchantmen': {'steel':750,
@@ -93,7 +93,7 @@ ALL_SHIPS = {
                   'population':20,
                   'food':20,
                   'antimatter':50,
-                  'money':6000,
+                  'money':5433,
                   'krellmetal':0,
                   'needbase':False},
   'scouts': {'steel':250,
@@ -101,7 +101,7 @@ ALL_SHIPS = {
              'population':5,
              'food':5,
              'antimatter':25,
-             'money':250,
+             'money':108,
              'krellmetal':0,
              'needbase':False},
   'battleships': {'steel':4000,
@@ -109,7 +109,7 @@ ALL_SHIPS = {
                   'population':110,
                   'food':200,
                   'antimatter':655,
-                  'money':25000,
+                  'money':10828,
                   'krellmetal':155,
                   'needbase':True},
   'destroyers': {'steel':1200,
@@ -117,7 +117,7 @@ ALL_SHIPS = {
                  'population':60,
                  'food':70,
                  'antimatter':276,
-                 'money':5020,
+                 'money':2174,
                  'krellmetal':0,
                  'needbase':False},
   'frigates': {'steel':950,
@@ -125,7 +125,7 @@ ALL_SHIPS = {
                'population':50,
                'food':50,
                'antimatter':200,
-               'money':1250,
+               'money':541,
                'krellmetal':0,
                'needbase':False},
   'cruisers': {'steel':1625,
@@ -133,8 +133,16 @@ ALL_SHIPS = {
                'population':80,
                'food':100,
                'antimatter':385,
-               'money':15000,
+               'money':6497,
                'krellmetal':67,
+               'needbase':True},
+  'harvesters': {'steel':5000,
+               'unobtanium':0,
+               'population':25,
+               'food':20,
+               'antimatter':50,
+               'money':2815,
+               'krellmetal':0,
                'needbase':True},
 }
 
@@ -150,7 +158,10 @@ UPGRADES = [
   'Slingshot',
   'Farm Subsidies',
   'Drilling Subsidies',
-  'Planetary Defense 1'
+  'Planetary Defense 1',
+  'Petrochemical Power Plant',
+  'Fusion Power Plant',
+  'Antimatter Power Plant'
 ]
 
 ME = 'me'
@@ -247,9 +258,12 @@ class Planet:
       self.money=int(data[i].split()[0]) ; i+=1
       self.steel=map(int, data[i:i+3]) ; i+=3
       self.unobtanium=map(int, data[i:i+3]) ; i+=3
+      self.strageness=map(int, data[i:i+3]) ; i+=3
       self.food=map(int, data[i:i+3]) ; i+=3
       self.antimatter=map(int, data[i:i+3]) ; i+=3
       self.consumergoods=map(int, data[i:i+3]) ; i+=3
+      self.charm=map(int, data[i:i+3]) ; i+=3
+      self.helium3=map(int, data[i:i+3]) ; i+=3
       self.hydrocarbon=map(int, data[i:i+3]) ; i+=3
       self.krellmetal=map(int, data[i:i+3]) ; i+=3
     except IndexError:
@@ -751,10 +765,7 @@ class Galaxy:
     return self._routes
 
   def load_raw_sectors(self, bounding_box):
-    result = {}
     formdata = {}
-    unowned_planets = []
-    owned_planets = []
     routes = {}
 
     topx = int(bounding_box[0][0])/5
@@ -778,6 +789,8 @@ class Galaxy:
   def load_sectors(self, bounding_box):
     j = json.loads(self.load_raw_sectors(bounding_box))
 
+    unowned_planets = []
+    owned_planets = []
     # parse the result, looking for planetary data
     secs = j["sectors"]["sectors"]
     for secnum in secs:
@@ -800,6 +813,7 @@ class Galaxy:
             owned_planets.append(planet)
         except:
           pass
+    result = {}
     result["planets"] = {}
     result["planets"]["unowned"] = unowned_planets
     result["planets"]["owned"] = owned_planets
