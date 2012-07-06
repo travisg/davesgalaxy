@@ -466,7 +466,7 @@ class Fleet:
           # must be headed for a unowned planet
           self.destination = dest
       self.disposition = str(soup.find(text="Disposition:")
-                             .findNext('td').string)
+                             .findNext('td').string).split(' - ')[1]
       try:
         self.speed = float(soup.find(text="Current Speed:")
                            .findNext('td').string)
