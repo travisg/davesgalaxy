@@ -45,6 +45,7 @@ def main():
 def buildbulkfreighters(g, old, limit_in, doupgrade=True):
   """Build bulkfreighters at advanced planets and deploy them nearby."""
   merchant = {'bulkfreighters': 1}
+  total = 0
   for planet in g.planets:
     limit = limit_in
     planet.load()
@@ -81,6 +82,8 @@ def buildbulkfreighters(g, old, limit_in, doupgrade=True):
         if built > 0:
           print "built %d bulkfreighters at %s for %d total" % (
             built, planet.name, built + already_has)
+          total += built
+  print "built %d bulkfreighters total" % total
 
 if __name__ == "__main__":
     main()

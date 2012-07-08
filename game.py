@@ -28,6 +28,7 @@ URL_PLANET_BUDGET = HOST + "/planets/%d/budget/"
 URL_FLEET_DETAIL = HOST + "/fleets/%d/info/"
 URL_MOVE_TO_PLANET = HOST + "/fleets/%d/movetoplanet/"
 URL_MOVE_TO_ROUTE = HOST + "/fleets/%d/onto/"
+URL_MOVE_ROUTE_TO = HOST + "/fleets/%d/routeto/"
 URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
 URL_SCRAP_FLEET = HOST + "/fleets/%d/scrap/"
 URL_BUILD_ROUTE = HOST + '/routes/named/add/'
@@ -52,7 +53,7 @@ ALL_SHIPS = {
                        'population':150,
                        'food':300,
                        'antimatter':1050,
-                       'money':75000,
+                       'money':32485,
                        'krellmetal':290,
                        'needbase':True},
   'bulkfreighters': {'steel':2500,
@@ -60,7 +61,7 @@ ALL_SHIPS = {
                      'population':20,
                      'food':20,
                      'antimatter':50,
-                     'money':1500,
+                     'money':5649,
                      'krellmetal':0,
                      'needbase':False},
   'subspacers': {'steel':625,
@@ -68,15 +69,15 @@ ALL_SHIPS = {
                  'population':50,
                  'food':50,
                  'antimatter':250,
-                 'money':12500,
+                 'money':5414,
                  'krellmetal':16,
                  'needbase':False},
-  'arcs': {'steel':9000,
+  'arcs': {'steel':10000,
            'unobtanium':0,
            'population':2000,
            'food':1000,
            'antimatter':500,
-           'money':10000,
+           'money':4331,
            'krellmetal':0,
            'needbase':False},
   'blackbirds': {'steel':500,
@@ -84,7 +85,7 @@ ALL_SHIPS = {
                  'population':5,
                  'food':5,
                  'antimatter':125,
-                 'money':10000,
+                 'money':4331,
                  'krellmetal':50,
                  'needbase':False},
   'merchantmen': {'steel':750,
@@ -92,7 +93,7 @@ ALL_SHIPS = {
                   'population':20,
                   'food':20,
                   'antimatter':50,
-                  'money':6000,
+                  'money':5433,
                   'krellmetal':0,
                   'needbase':False},
   'scouts': {'steel':250,
@@ -100,7 +101,7 @@ ALL_SHIPS = {
              'population':5,
              'food':5,
              'antimatter':25,
-             'money':250,
+             'money':108,
              'krellmetal':0,
              'needbase':False},
   'battleships': {'steel':4000,
@@ -108,7 +109,7 @@ ALL_SHIPS = {
                   'population':110,
                   'food':200,
                   'antimatter':655,
-                  'money':25000,
+                  'money':10828,
                   'krellmetal':155,
                   'needbase':True},
   'destroyers': {'steel':1200,
@@ -116,7 +117,7 @@ ALL_SHIPS = {
                  'population':60,
                  'food':70,
                  'antimatter':276,
-                 'money':5020,
+                 'money':2174,
                  'krellmetal':0,
                  'needbase':False},
   'frigates': {'steel':950,
@@ -124,7 +125,7 @@ ALL_SHIPS = {
                'population':50,
                'food':50,
                'antimatter':200,
-               'money':1250,
+               'money':541,
                'krellmetal':0,
                'needbase':False},
   'cruisers': {'steel':1625,
@@ -132,8 +133,16 @@ ALL_SHIPS = {
                'population':80,
                'food':100,
                'antimatter':385,
-               'money':15000,
+               'money':6497,
                'krellmetal':67,
+               'needbase':True},
+  'harvesters': {'steel':5000,
+               'unobtanium':0,
+               'population':25,
+               'food':20,
+               'antimatter':50,
+               'money':2815,
+               'krellmetal':0,
                'needbase':True},
 }
 
@@ -149,7 +158,10 @@ UPGRADES = [
   'Slingshot',
   'Farm Subsidies',
   'Drilling Subsidies',
-  'Planetary Defense 1'
+  'Planetary Defense 1',
+  'Petrochemical Power Plant',
+  'Fusion Power Plant',
+  'Antimatter Power Plant'
 ]
 
 ME = 'me'
@@ -246,9 +258,12 @@ class Planet:
       self.money=int(data[i].split()[0]) ; i+=1
       self.steel=map(int, data[i:i+3]) ; i+=3
       self.unobtanium=map(int, data[i:i+3]) ; i+=3
+      self.strageness=map(int, data[i:i+3]) ; i+=3
       self.food=map(int, data[i:i+3]) ; i+=3
       self.antimatter=map(int, data[i:i+3]) ; i+=3
       self.consumergoods=map(int, data[i:i+3]) ; i+=3
+      self.charm=map(int, data[i:i+3]) ; i+=3
+      self.helium3=map(int, data[i:i+3]) ; i+=3
       self.hydrocarbon=map(int, data[i:i+3]) ; i+=3
       self.krellmetal=map(int, data[i:i+3]) ; i+=3
     except IndexError:
@@ -292,6 +307,7 @@ class Planet:
   def can_build(self, manifest):
     return self.how_many_can_build(manifest) > 0
   def build_fleet(self, manifest, interactive=False, skip_check=False):
+    fleet = None
     if skip_check or self.can_build(manifest):
       formdata = {}
       formdata['submit-build-%d' % self.planetid] = 1
@@ -301,7 +317,6 @@ class Planet:
       req = self.galaxy.opener.open(URL_BUILD_FLEET % self.planetid,
                                     urllib.urlencode(formdata))
       response = req.read()
-      fleet = None
       if 'Fleet Built' in response: 
         j = json.loads(response)
         fleet = Fleet(self.galaxy,
@@ -322,8 +337,10 @@ class Planet:
         if interactive:
           js = 'javascript:handleserverresponse(%s);' % response
           subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
+      else:
+        sys.stderr.write('error when building')
     else:
-      sys.stderr.write('%s\n' % response)
+      sys.stderr.write('cannot build %s\n' % str(manifest))
     return fleet
   def scrap_fleet(self, fleet):
     if fleet.scrap() and self._loaded and fleet._loaded:
@@ -456,7 +473,7 @@ class Fleet:
             # must be headed for a unowned planet
             self.destination = dest
         self.disposition = str(soup.find(text="Disposition:")
-                               .findNext('td').string)
+                             .findNext('td').string).split(' - ')[1]
         try:
           self.speed = float(soup.find(text="Current Speed:")
                              .findNext('td').string)
@@ -519,6 +536,21 @@ class Fleet:
     # force a reload to get any new destination
     self.load(True)
     return success
+  def route_to(self, points, planetid=None):
+    formdata = {}
+    formdata['circular'] = False
+    formdata['route'] = ','.join(map(lambda p: 
+                                     '/'.join(map(lambda x: str(x), p)), 
+                                     points))
+    if planetid:
+      formdata['route'] = "%s, %s" % (formdata['route'], str(planetid))
+    req = self.galaxy.opener.open(URL_MOVE_ROUTE_TO % self.fleetid,
+                                  urllib.urlencode(formdata))
+    response = req.read()
+    success = 'Fleet Routed' in response
+    if not success:
+      sys.stderr.write('%s/n' % response)
+    return success
   def at(self, planet):
     if not self.at_planet:
       return False
@@ -540,6 +572,10 @@ class Fleet:
     for s in self.ships:
       count += self.ships[s]
     return count
+  def view(self):
+    js = 'javascript:gm.centermap(%d, %d);' % (self.coords[0],
+                                               self.coords[1])
+    subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
 
 class Route:
   def __init__(self, galaxy, id, circular, name, points):
@@ -604,6 +640,14 @@ class Galaxy:
       except KeyError:
         return None
 
+  def find_fleet(self, query):
+    if type(query) == types.IntType:
+      for f in self.fleets:
+        if query == f.fleetid:
+          return f
+      return None
+    return None
+    
   def find_planet(self, query):
     if type(query) == types.StringType:
       for p in self.planets:
@@ -659,6 +703,7 @@ class Galaxy:
     self.load_planet_cache()
     if self._planets: return self._planets
     
+    sys.stderr.write('no planet cache\n')
     i=1
     planets = []
     while True:
@@ -683,8 +728,10 @@ class Galaxy:
           planets.append(Planet(self, planetid, name, location))
         i += 1
       except urllib2.HTTPError:
+        sys.stderr.write('http error\n')
         break
       except KeyError:
+        sys.stderr.write('key error\n')
         break
     self._planets = planets
     self.write_planet_cache()
@@ -741,11 +788,8 @@ class Galaxy:
       self._routes = routes
     return self._routes
 
-  def load_sectors(self, bounding_box):
-    result = {}
+  def load_raw_sectors(self, bounding_box):
     formdata = {}
-    unowned_planets = []
-    owned_planets = []
     routes = {}
 
     topx = int(bounding_box[0][0])/5
@@ -764,9 +808,13 @@ class Galaxy:
                            urllib.urlencode(formdata))        
     response = req.read()
     #sys.stderr.write('%s\n' % response)
-    j = json.loads(response)
-    #print json.dumps(j, separators=(',',':'), sort_keys=True, indent=4)
+    return response
 
+  def load_sectors(self, bounding_box):
+    j = json.loads(self.load_raw_sectors(bounding_box))
+
+    unowned_planets = []
+    owned_planets = []
     # parse the result, looking for planetary data
     secs = j["sectors"]["sectors"]
     for secnum in secs:
@@ -790,6 +838,7 @@ class Galaxy:
             owned_planets.append(planet)
         except:
           pass
+    result = {}
     result["planets"] = {}
     result["planets"]["unowned"] = unowned_planets
     result["planets"]["owned"] = owned_planets
@@ -809,6 +858,9 @@ class Galaxy:
 
   def load_sector_at(self, location):
     return self.load_sectors([location, location])
+
+  def load_raw_sector_at(self, location):
+    return self.load_raw_sectors([location, location])
 
   def create_route(self, name, circular, points):
     formdata = {}
