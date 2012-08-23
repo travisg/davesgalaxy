@@ -51,18 +51,19 @@ def BuildUpgrades(g, doupgrade, domindcontrol, dodefense, domilitary):
   for p in g.planets:
     p.load()
     print "looking at planet " + p.name
+    # min upgrades assuming 7% tax
     if p.can_upgrade('Trade Incentives') and p.population >= 5000:
       total += BuildUpgrade(p, doupgrade, 'Trade Incentives')
-    if p.society > 10 and p.can_upgrade('Long Range Sensors 1') and p.population >= 10000:
+    if p.society > 10 and p.can_upgrade('Long Range Sensors 1') and p.population >= 50000:
       total += BuildUpgrade(p, doupgrade, 'Long Range Sensors 1')
-    if p.society > 20 and p.can_upgrade('Long Range Sensors 2') and p.population >= 12000:
+    if p.society > 20 and p.can_upgrade('Long Range Sensors 2') and p.population >= 150000:
       total += BuildUpgrade(p, doupgrade, 'Long Range Sensors 2')
-    if p.society > 30 and p.can_upgrade('Slingshot') and p.population >= 20000:
-      total += BuildUpgrade(p, doupgrade, 'Slingshot')
-    if p.society > 40 and p.can_upgrade('Matter Synth 1') and p.population >= 200000:
+    if p.society > 40 and p.can_upgrade('Matter Synth 1') and p.population >= 400000:
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 1')
-    if p.society > 50 and p.can_upgrade('Matter Synth 2') and p.population >= 500000:
+    if p.society > 50 and p.can_upgrade('Matter Synth 2') and p.population >= 900000:
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 2')
+    if p.society > 50 and p.can_upgrade('Slingshot') and p.population >= 1750000:
+      total += BuildUpgrade(p, doupgrade, 'Slingshot')
     if domilitary and p.society > 50 and p.can_upgrade('Military Base') and p.population >= 5000000:
       total += BuildUpgrade(p, doupgrade, 'Military Base')
     if dodefense and p.can_upgrade('Planetary Defense 1') and p.population >= 5000000:
