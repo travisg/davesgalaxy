@@ -434,6 +434,35 @@ class Planet:
     except urllib2.HTTPError:
       return False
 
+  def manage(self, name, taxrate, tariff):
+    if (taxrate >= 0.0 and taxrate <= 30.0):
+      self.tax = float(taxrate)
+    if (tariff >= 0.0 and tariff <= 30.0):
+      self.tarif = float(tariff)
+
+    self.name = name
+  
+    formdata = {}
+    formdata['name'] = self.name
+    formdata['tariffrate'] = str(self.tarif)
+    formdata['inctaxrate'] = str(self.tax)
+    req = self.galaxy.opener.open(URL_PLANET_MANAGE % self.planetid,
+                                  urllib.urlencode(formdata))
+    response = req.read()
+    success = 'Planet Managed' in response
+    if not success:
+      sys.stderr.write('%s/n' % response)
+    return success
+
+  def set_tax(self, rate):
+    return self.manage(self.name, rate, self.tarif)
+
+  def set_tariff(self, rate):
+    return self.manage(self.name, self.tax, rate)
+
+  def set_name(self, name):
+    return self.manage(name, self.tax, self.tarif)
+
 class Fleet:
   def __init__(self, galaxy, fleetid, coords, at=False):
     self.galaxy = galaxy
