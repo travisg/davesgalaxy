@@ -811,33 +811,35 @@ class Galaxy:
     return response
 
   def load_sectors(self, bounding_box):
+    #print "load sectors " + str(bounding_box)
     j = json.loads(self.load_raw_sectors(bounding_box))
 
     unowned_planets = []
     owned_planets = []
     # parse the result, looking for planetary data
     secs = j["sectors"]["sectors"]
+    #print secs
     for secnum in secs:
-      #print "sector " + str(secnum)
-      planets = secs[secnum]["planets"]
-      for pnum in planets:
-        #print "\tplanet " + str(pnum)
-        try:
-          p = planets[pnum]
-          pid = int(p["i"])
-          owner = int(p.get("o", 0))
-          locationx = float(p["x"])
-          locationy = float(p["y"])
-          name = str(p["n"])
-          #print planet
-          if owner == 0:
-            planet = Planet(self, pid, name, [ locationx, locationy ], "unowned")
-            unowned_planets.append(planet)
-          else:
-            planet = Planet(self, pid, name, [ locationx, locationy ], str(owner))
-            owned_planets.append(planet)
-        except:
-          pass
+      if "planets" in secs[secnum]:
+        planets = secs[secnum]["planets"]
+        for pnum in planets:
+          #print "\tplanet " + str(pnum)
+          try:
+            p = planets[pnum]
+            pid = int(p["i"])
+            owner = int(p.get("o", 0))
+            locationx = float(p["x"])
+            locationy = float(p["y"])
+            name = str(p["n"])
+            #print planet
+            if owner == 0:
+              planet = Planet(self, pid, name, [ locationx, locationy ], "unowned")
+              unowned_planets.append(planet)
+            else:
+              planet = Planet(self, pid, name, [ locationx, locationy ], str(owner))
+              owned_planets.append(planet)
+          except:
+            pass
     result = {}
     result["planets"] = {}
     result["planets"]["unowned"] = unowned_planets
