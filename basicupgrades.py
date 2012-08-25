@@ -19,8 +19,10 @@ def main():
                     action="store_true", default=False, help="build mind control")
   parser.add_option("-d", "--defense", dest="defense",
                     action="store_true", default=False, help="build planetary defense")
+  parser.add_option("-t", "--tax", dest="tax", type="float",
+                    action="store", help="set tax rate")
   (options, args) = parser.parse_args()
-  
+
   g=game.Galaxy()
   if options.username and options.password:
     # explicit login
@@ -29,7 +31,7 @@ def main():
     # try to pick up stored credentials
     g.login()
 
-  BuildUpgrades(g, options.doupgrade, options.mindcontrol, options.defense, options.military)
+  BuildUpgrades(g, options.doupgrade, options.mindcontrol, options.defense, options.military, options.tax)
   g.write_planet_cache()
 
 def BuildUpgrade(p, doupgrade, upgrade):
@@ -44,7 +46,7 @@ def BuildUpgrade(p, doupgrade, upgrade):
     print "\twould have built %s at %s." % (upgrade, p.name)
   return total
 
-def BuildUpgrades(g, doupgrade, domindcontrol, dodefense, domilitary):
+def BuildUpgrades(g, doupgrade, domindcontrol, dodefense, domilitary, tax):
   has_pd = []
   total = 0
 
@@ -64,6 +66,8 @@ def BuildUpgrades(g, doupgrade, domindcontrol, dodefense, domilitary):
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 2')
     if p.society > 50 and p.can_upgrade('Slingshot') and p.population >= 1750000:
       total += BuildUpgrade(p, doupgrade, 'Slingshot')
+    if p.society > 50 and p.can_upgrade('Petrochemical Power Plant') and p.population >= 5000000:
+      total += BuildUpgrade(p, doupgrade, 'Petrochemical Power Plant')
     if domilitary and p.society > 50 and p.can_upgrade('Military Base') and p.population >= 5000000:
       total += BuildUpgrade(p, doupgrade, 'Military Base')
     if dodefense and p.can_upgrade('Planetary Defense 1') and p.population >= 5000000:
@@ -71,6 +75,11 @@ def BuildUpgrades(g, doupgrade, domindcontrol, dodefense, domilitary):
     if domindcontrol and p.can_upgrade('Mind Control'):
       if p.society < 90 and p.society > 70:
         total += BuildUpgrade(p, doupgrade, 'Mind Control')
+
+    if tax != None:
+      if p.tax < float(tax):
+        print "\tsetting tax rate to " + str(tax)
+        p.set_tax(tax)
 
   print "started %d upgrades" % total
 
