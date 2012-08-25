@@ -23,8 +23,6 @@ else:
 count = 0
 print 'Name, ID, Society, Population, Money, Food, Steel, Tax, Tarif, Distance, Upgrades, Upgrades Avail'
 for p in g.planets:
-  if p.planetid == 2774451:
-	  p._loaded = False
   if p.load():
 	  count += 1
 	  if (count % 100) == 0:
@@ -55,5 +53,6 @@ for p in g.planets:
     p.money, p.food[0], p.steel[0], p.tax, p.tarif, p.distance,
     upgrades, upgrades_avail
     )
+
 g.write_planet_cache()
 
