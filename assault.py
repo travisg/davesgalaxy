@@ -61,6 +61,9 @@ def main():
 
   Assault(g, options.doupgrade, options.minfleet, source_shape, sink_shape, options.owner)
 
+def MakePoints(location):
+  points = (location[0] - .2, location[1]),(location[0] + .2, location[1])
+  return points
 
 def Assault(g, doupgrade, minfleet, source, sink, owner):
   built = 0
@@ -90,9 +93,12 @@ def Assault(g, doupgrade, minfleet, source, sink, owner):
   #print sect
   targets = []
   for p in sect["planets"]["owned"]:
-    #print p
+    print p
     if p.owner == owner:
-      targets.append(p)
+      routename = "assault%s" %(str(p.planetid))
+      r = g.find_route(routename)
+      if r == None:
+        targets.append(p)
 
   print "found " + str(len(targets)) + " target planets"
 
@@ -120,7 +126,20 @@ def Assault(g, doupgrade, minfleet, source, sink, owner):
         if doupgrade:
           fleet = p.build_fleet(f)
           if fleet:
-            fleet.move_to_planet(t)
+            #fleet.move_to_planet(t)
+            routename = "assault%s" %(str(t.planetid))
+            r = g.find_route(routename)
+            if r == None:
+              print "building route"
+              points = MakePoints(t.location)
+              #print points
+
+              r = g.create_route("assault%s" % (str(t.planetid)), True, points);
+              #print r
+
+            print "moving fleet to new route"
+            if fleet.move_to_route(r) == False:
+              print "error moving fleet"
           else:
             print " failed to build fleet"
             count = 0
