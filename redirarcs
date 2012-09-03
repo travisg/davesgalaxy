@@ -47,12 +47,12 @@ def main():
 
   g.load_fleet_cache()
 
+  if source_shape == None:
+    print "could't find source route"
+    sys.exit(1)
+
   RedirArcsFromOwned(g, options.doupgrade, dest_shape)
   RedirReturningArcs(g, options.doupgrade, source_shape, dest_shape)
-
-#  if source_shape == None:
-#    print "could't find source route"
-#    sys.exit(1)
 
 #  RedirArcsFromSource(g, options.doupgrade, source_shape, dest_shape)
 
