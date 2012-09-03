@@ -492,7 +492,9 @@ class Fleet:
         req = self.galaxy.opener.open(URL_FLEET_DETAIL % self.fleetid)
         soup = BeautifulSoup(json.load(req)['pagedata'])
         home = str(soup.find(text="Home Port:").findNext('td').string)
-        self.home = self.galaxy.find_planet(int(home.split('-')[1]))
+        homesplit = home.split('-')
+        homeid = homesplit[len(homesplit)-1]
+        self.home = self.galaxy.find_planet(int(homeid))
         dest = str(soup.find(text="Destination:").findNext('td').string)
         self.destination = parse_coords(dest)
         if not self.destination:
