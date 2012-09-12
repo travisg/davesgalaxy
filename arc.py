@@ -20,6 +20,8 @@ def main():
                     action="store", type="int", default=-1, help="max arcs per planet")
   parser.add_option("-l", "--leave", dest="leave",
                     action="store", type="int", default=0, help="min of arcs to leave on planet")
+  parser.add_option("-e", "--escort", dest="escort",
+                    action="store", type="string", help="escort fleet")
 
   parser.add_option("-x", "--sx", dest="sx",
                     action="store", type="float", help="source x coordinate")
@@ -62,7 +64,7 @@ def main():
   else:
     # try to pick up stored credentials
     g.login()
-    
+
   sink_shape = None
   if options.sink != None:
     sink_route = g.find_route(options.sink)
@@ -79,9 +81,71 @@ def main():
 
   BuildArcs(g, options.doupgrade, options.maxarcs,
             options.perplanet, options.leave,
-            source_shape, sink_shape)
+            source_shape, sink_shape, options.escort)
 
-def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink):
+def ParseFleet(fleetstr):
+  fleet = { }
+
+  if fleetstr == None:
+    return fleet
+
+  fleetstr = fleetstr.lower()
+
+  #print "parsefleet " + fleetstr
+
+  num = 0
+  for c in fleetstr:
+    if c >= '0' and c <= '9':
+      num *= 10
+      num += int(c)
+    elif c == 's':
+      fleet.update(scouts=num)
+      num = 0
+    elif c == 'f':
+      fleet.update(frigates=num)
+      num = 0
+    elif c == 'd':
+      fleet.update(destroyers=num)
+      num = 0
+    elif c == 'c':
+      fleet.update(cruisers=num)
+      num = 0
+    elif c == 'l':
+      fleet.update(blackbirds=num)
+      num = 0
+    elif c == 'b':
+      fleet.update(battleships=num)
+      num = 0
+    elif c == 'B':
+      fleet.update(superbattleships=num)
+      num = 0
+    elif c == 'u':
+      fleet.update(subspacers=num)
+      num = 0
+    elif c == 'a':
+      fleet.update(arcs=num)
+      num = 0
+    elif c == 'r':
+      fleet.update(freighters=num)
+      num = 0
+    elif c == 'm':
+      fleet.update(merchantmen=num)
+      num = 0
+    elif c == 'h':
+      fleet.update(harvesters=num)
+      num = 0
+    else:
+      print "bad fleet token " + c
+      num = 0
+
+    #print "fleet " + str(fleet)
+
+  return fleet
+
+def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink, escort):
+
+  escortfleet = ParseFleet(escort)
+  print escortfleet
 
   # find a list of potential arc builders
   print "looking for arc builders..."
@@ -116,9 +180,9 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink):
   unowned_targets = foo
 
   print "found " + str(len(unowned_targets)) + " unowned planets"
-  
+
   # trim the list of targets to ones that dont have an arc already incoming
-  # 
+  #
   print "trimming list of unowned planets..."
   for f in g.fleets:
     f.load()
@@ -141,6 +205,10 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink):
   if len(unowned_targets) > 0:
     print "building arcs..."
     arc = { 'arcs': 1 }
+
+    arc.update(escortfleet)
+
+    print arc
     done = False
     for p in arc_builders:
       if done:
@@ -174,10 +242,10 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink):
               print " failed to build fleet"
               count = 0
               break
-          
+
           # cull this target from the list
           unowned_targets.remove(t)
-          built += 1 
+          built += 1
           count -= 1
           maxarcs -= 1
           if (maxarcs == 0):
@@ -187,9 +255,9 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink):
 
   if built > 0:
     if doupgrade:
-      print "built %d arcs" % built
+      print "built %d arc fleets" % built
     else:
-      print "would have built %d arcs" % built
+      print "would have built %d arc fleets" % built
 
   g.write_planet_cache()
   g.write_fleet_cache()
