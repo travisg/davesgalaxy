@@ -201,6 +201,135 @@ def distance_between(locationA, locationB):
     return math.sqrt(math.pow(abs(locationA[0]-locationB[0]), 2) +
                      math.pow(abs(locationA[1]-locationB[1]), 2))
 
+def ParseFleet(fleetstr):
+  fleet = { }
+
+  if fleetstr == None:
+    return fleet
+
+  fleetstr = fleetstr.lower()
+
+  #print "parsefleet " + fleetstr
+
+  num = 0
+  for c in fleetstr:
+    if c >= '0' and c <= '9':
+      num *= 10
+      num += int(c)
+    elif c == 's':
+      fleet.update(scouts=num)
+      num = 0
+    elif c == 'f':
+      fleet.update(frigates=num)
+      num = 0
+    elif c == 'd':
+      fleet.update(destroyers=num)
+      num = 0
+    elif c == 'c':
+      fleet.update(cruisers=num)
+      num = 0
+    elif c == 'l':
+      fleet.update(blackbirds=num)
+      num = 0
+    elif c == 'b':
+      fleet.update(battleships=num)
+      num = 0
+    elif c == 'B':
+      fleet.update(superbattleships=num)
+      num = 0
+    elif c == 'u':
+      fleet.update(subspacers=num)
+      num = 0
+    elif c == 'a':
+      fleet.update(arcs=num)
+      num = 0
+    elif c == 'r':
+      fleet.update(freighters=num)
+      num = 0
+    elif c == 'm':
+      fleet.update(merchantmen=num)
+      num = 0
+    elif c == 'h':
+      fleet.update(harvesters=num)
+      num = 0
+    else:
+      print "bad fleet token " + c
+      num = 0
+
+    #print "fleet " + str(fleet)
+
+  return fleet
+
+def FindUnownedPlanetsInShape(g, shape):
+  sect = g.load_sectors(shape.bounding_box())
+
+  planets = []
+  for p in sect["planets"]["unowned"]:
+    if shape.inside(p.location):
+      planets.append(p)
+
+  return planets
+
+def FindOwnedPlanetsInShape(g, shape):
+  sect = g.load_sectors(shape.bounding_box())
+
+  planets = []
+  for p in sect["planets"]["owned"]:
+    if shape.inside(p.location):
+      planets.append(p)
+
+  return planets
+
+def FindAllPlanetsInShape(g, shape):
+  sect = g.load_sectors(shape.bounding_box())
+
+  planets = []
+  for p in sect["planets"]["owned"]:
+    if shape.inside(p.location):
+      planets.append(p)
+  for p in sect["planets"]["unowned"]:
+    if shape.inside(p.location):
+      planets.append(p)
+
+  return planets
+
+def TrimColonyTargettedPlanets(g, targets):
+  # trim the list of targets to ones that dont have an arc already incoming
+  for f in g.fleets:
+    f.load()
+    try:
+      if f.disposition == "Colonize":
+      # look for destinations in the NAME-NUMBER form
+        pnum = int(f.destination.split('-')[1])
+        for p in targets:
+          if p.planetid == pnum:
+            #print "fleet " + str(f) + " already heading for dest"
+            targets.remove(p)
+            break
+    except:
+      pass
+
+  return targets
+
+def FleetDestToPlanetID(destination):
+  # if it's a real planet target, get the id
+  dest_planet_id = None
+  try:
+    dest_planet_id = int(destination.planetid)
+  except:
+    pass
+
+  # if its a string target, try to extract the planetid from it
+  if dest_planet_id == None:
+    try:
+      s = destination.split('-')
+      dest_planet_id = int(s[len(s)-1])
+    except:
+      pass
+
+  return dest_planet_id
+
+
 class Planet:
   def __init__(self, galaxy, planetid, name='unknown', location=None, owner=ME):
     self.galaxy = galaxy

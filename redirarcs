@@ -62,11 +62,11 @@ def main():
 def RedirArcsFromSource(g, doupgrade, source_shape, dest_shape):
 
   print "finding planets in source sector..."
-  source_targets = FindAllPlanetsInShape(g, source_shape)
+  source_targets = game.FindAllPlanetsInShape(g, source_shape)
   print "%d planets in source sector" % len(source_targets)
 
   print "finding planets in target sector..."
-  targets = FindUnownedPlanetsInShape(g, dest_shape)
+  targets = game.FindUnownedPlanetsInShape(g, dest_shape)
   print "%d unowned planets in target sector" % len(targets)
 
   print "removing overlap planets from source..."
@@ -78,7 +78,7 @@ def RedirArcsFromSource(g, doupgrade, source_shape, dest_shape):
   print "%d unowned planets in target sector" % len(targets)
 
   print "removing already targetted planets in target sector..."
-  targets = TrimColonyTargettedPlanets(g, targets)
+  targets = game.TrimColonyTargettedPlanets(g, targets)
   print "%d unowned planets in target sector" % len(targets)
 
   if len(targets) == 0:
@@ -92,7 +92,7 @@ def RedirArcsFromSource(g, doupgrade, source_shape, dest_shape):
       if f.ships['arcs'] == 1:
         #print "found potential arc fleet %s, destination %s" % (f, f.destination)
 
-        dest_planet_id = FleetDestToPlanetID(f.destination)
+        dest_planet_id = game.FleetDestToPlanetID(f.destination)
 
         for p in source_targets:
           if int(p.planetid) == int(dest_planet_id):
@@ -111,12 +111,12 @@ def RedirArcsFromSource(g, doupgrade, source_shape, dest_shape):
 # redirect arcs with their home as their target
 def RedirReturningArcs(g, doupgrade, source_shape, dest_shape):
 
-  targets = FindUnownedPlanetsInShape(g, dest_shape)
-  owned_planets = FindOwnedPlanetsInShape(g, dest_shape)
+  targets = game.FindUnownedPlanetsInShape(g, dest_shape)
+  owned_planets = game.FindOwnedPlanetsInShape(g, dest_shape)
 
   print "%d unowned planets in sector" % len(targets)
 
-  targets = TrimColonyTargettedPlanets(g, targets)
+  targets = game.TrimColonyTargettedPlanets(g, targets)
   print "%d unowned planets in sector after trimming colony targets" % len(targets)
 
   if len(targets) == 0:
@@ -129,7 +129,7 @@ def RedirReturningArcs(g, doupgrade, source_shape, dest_shape):
     if f.ships.get('arcs', 0) > 0:
       #print "found potential arc fleet %s, destination %s" % (f, f.destination)
 
-      dest_planet_id = FleetDestToPlanetID(f.destination)
+      dest_planet_id = game.FleetDestToPlanetID(f.destination)
 
       #print "fleet %s dest %s home %s" % (f, str(dest_planet_id), str(f.home.planetid))
 
@@ -144,12 +144,12 @@ def RedirReturningArcs(g, doupgrade, source_shape, dest_shape):
 # redirect arcs away from owned planets
 def RedirArcsFromOwned(g, doupgrade, dest_shape):
 
-  targets = FindUnownedPlanetsInShape(g, dest_shape)
-  owned_planets = FindOwnedPlanetsInShape(g, dest_shape)
+  targets = game.FindUnownedPlanetsInShape(g, dest_shape)
+  owned_planets = game.FindOwnedPlanetsInShape(g, dest_shape)
 
   print "%d unowned planets in sector" % len(targets)
 
-  targets = TrimColonyTargettedPlanets(g, targets)
+  targets = game.TrimColonyTargettedPlanets(g, targets)
   print "%d unowned planets in sector after trimming colony targets" % len(targets)
 
   if len(targets) == 0:
@@ -163,7 +163,7 @@ def RedirArcsFromOwned(g, doupgrade, dest_shape):
       if f.ships['arcs'] == 1:
         #print "found potential arc fleet %s, destination %s" % (f, f.destination)
 
-        dest_planet_id = FleetDestToPlanetID(f.destination)
+        dest_planet_id = game.FleetDestToPlanetID(f.destination)
 
         for p in owned_planets:
           if int(p.planetid) == int(dest_planet_id):
@@ -204,75 +204,6 @@ def RedirArcs(g, doupgrade, arc_fleets, targets):
 
   for f in arc_fleets:
     del f.targets
-
-def FindUnownedPlanetsInShape(g, shape):
-  sect = g.load_sectors(shape.bounding_box())
-
-  planets = []
-  for p in sect["planets"]["unowned"]:
-    if shape.inside(p.location):
-      planets.append(p)
-
-  return planets
-
-def FindOwnedPlanetsInShape(g, shape):
-  sect = g.load_sectors(shape.bounding_box())
-
-  planets = []
-  for p in sect["planets"]["owned"]:
-    if shape.inside(p.location):
-      planets.append(p)
-
-  return planets
-
-def FindAllPlanetsInShape(g, shape):
-  sect = g.load_sectors(shape.bounding_box())
-
-  planets = []
-  for p in sect["planets"]["owned"]:
-    if shape.inside(p.location):
-      planets.append(p)
-  for p in sect["planets"]["unowned"]:
-    if shape.inside(p.location):
-      planets.append(p)
-
-  return planets
-
-def TrimColonyTargettedPlanets(g, targets):
-  # trim the list of targets to ones that dont have an arc already incoming
-  for f in g.fleets:
-    f.load()
-    try:
-      if f.disposition == "Colonize":
-      # look for destinations in the NAME-NUMBER form
-        pnum = int(f.destination.split('-')[1])
-        for p in targets:
-          if p.planetid == pnum:
-            #print "fleet " + str(f) + " already heading for dest"
-            targets.remove(p)
-            break
-    except:
-      pass
-
-  return targets
-
-def FleetDestToPlanetID(destination):
-  # if it's a real planet target, get the id
-  dest_planet_id = None
-  try:
-    dest_planet_id = int(destination.planetid)
-  except:
-    pass
-
-  # if its a string target, try to extract the planetid from it
-  if dest_planet_id == None:
-    try:
-      s = destination.split('-')
-      dest_planet_id = int(s[len(s)-1])
-    except:
-      pass
-
-  return dest_planet_id
 
 if __name__ == "__main__":
     main()
