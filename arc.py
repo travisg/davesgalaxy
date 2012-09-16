@@ -83,69 +83,14 @@ def main():
             options.perplanet, options.leave,
             source_shape, sink_shape, options.escort)
 
-def ParseFleet(fleetstr):
-  fleet = { }
-
-  if fleetstr == None:
-    return fleet
-
-  fleetstr = fleetstr.lower()
-
-  #print "parsefleet " + fleetstr
-
-  num = 0
-  for c in fleetstr:
-    if c >= '0' and c <= '9':
-      num *= 10
-      num += int(c)
-    elif c == 's':
-      fleet.update(scouts=num)
-      num = 0
-    elif c == 'f':
-      fleet.update(frigates=num)
-      num = 0
-    elif c == 'd':
-      fleet.update(destroyers=num)
-      num = 0
-    elif c == 'c':
-      fleet.update(cruisers=num)
-      num = 0
-    elif c == 'l':
-      fleet.update(blackbirds=num)
-      num = 0
-    elif c == 'b':
-      fleet.update(battleships=num)
-      num = 0
-    elif c == 'B':
-      fleet.update(superbattleships=num)
-      num = 0
-    elif c == 'u':
-      fleet.update(subspacers=num)
-      num = 0
-    elif c == 'a':
-      fleet.update(arcs=num)
-      num = 0
-    elif c == 'r':
-      fleet.update(freighters=num)
-      num = 0
-    elif c == 'm':
-      fleet.update(merchantmen=num)
-      num = 0
-    elif c == 'h':
-      fleet.update(harvesters=num)
-      num = 0
-    else:
-      print "bad fleet token " + c
-      num = 0
-
-    #print "fleet " + str(fleet)
-
-  return fleet
-
 def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink, escort):
 
-  escortfleet = ParseFleet(escort)
+  escortfleet = game.ParseFleet(escort)
   print escortfleet
+
+  # construct fleet we want to build
+  arc = { 'arcs': 1 }
+  arc.update(escortfleet)
 
   # find a list of potential arc builders
   print "looking for arc builders..."
@@ -154,104 +99,81 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink, escort):
   for p in g.planets:
     if source.inside(p.location):
       p.load()
-      count = p.how_many_can_build({'arcs': 1})
+      count = p.how_many_can_build(arc)
       if count and (p.society > 40 and p.population > 1000000) or p.population > 5000000:
         print "planet " + str(p) + " can build " + str(count) + " arcs"
         p.distance_to_target = sink.distance(p.location)
         arc_builders.append(p)
         total_arcs += count
 
-  # sort arc builders by distance to target
-  arc_builders = sorted(arc_builders, key=lambda planet: planet.distance_to_target)
-
   print "found " + str(len(arc_builders)) + " arc building planets capable of building " + str(total_arcs) + " arcs"
 
   # load the sectors around the target point
   print "looking for unowned planets at target location..."
-  sect = g.load_sectors(sink.bounding_box())
-  #print sect
-  unowned_targets = sect["planets"]["unowned"]
-
-  # trim planets to ones strictly within the radius specified
-  foo = []
-  for p in unowned_targets:
-    if sink.inside(p.location):
-      foo.append(p)
-  unowned_targets = foo
-
+  unowned_targets = game.FindUnownedPlanetsInShape(g, sink)
+  
   print "found " + str(len(unowned_targets)) + " unowned planets"
 
   # trim the list of targets to ones that dont have an arc already incoming
-  #
   print "trimming list of unowned planets..."
-  for f in g.fleets:
-    f.load()
-    try:
-      if f.disposition == "Colonize":
-      # look for destinations in the NAME-NUMBER form
-        pnum = int(f.destination.split('-')[1])
-        for p in unowned_targets:
-          if p.planetid == pnum:
-            print "fleet " + str(f) + " already heading for dest"
-            unowned_targets.remove(p)
-            break
-    except:
-      pass
-
+  unowned_targets = game.TrimColonyTargettedPlanets(g, unowned_targets)
   print "now have " + str(len(unowned_targets)) + " unowned planets"
 
   # build arcs
   built = 0
   if len(unowned_targets) > 0:
     print "building arcs..."
-    arc = { 'arcs': 1 }
 
-    arc.update(escortfleet)
-
-    print arc
-    done = False
+    # sort the shortest distances for each arc builder to all the targets
     for p in arc_builders:
-      if done:
-        break
+      p.targets = sorted(unowned_targets, key=lambda planet: game.distance_between(planet.location, p.location))
+      p.arcs_can_build = p.how_many_can_build(arc) # delete later
+      p.arcs_built = 0
+  
+    # iterate through the list, building the shortest builder -> target path until out of arcs or one of the passed in terminating conditions
+    while len(arc_builders) > 0 and len(unowned_targets) > 0:
+      # sort all of the arc builders by the shortest closest target
+      arc_builders = sorted(arc_builders, key=lambda planet: game.distance_between(planet.location, planet.targets[0].location))
 
-      count = p.how_many_can_build(arc);
+      p = arc_builders[0]
+      t = p.targets[0]
+
+      count = p.arcs_can_build
 
       # trim the number we can build by the min left limit
       count -= leave
-      if count <= 0:
+      if count <= 0 or (perplanet > 0 and p.arcs_built >= perplanet):
+        arc_builders.remove(p)
         continue
 
-      # trim the number we can build by per-planet limit
-      if perplanet > 0 and count > perplanet:
-        count = perplanet
+      #print "planet " + str(p) + " can build " + str(count) + " arcs"
+      print "looking to build from " + str(p) + " to " + str(t) + " distance: " + str(game.distance_between(p.location, t.location))
+      if doupgrade:
+        fleet = p.build_fleet(arc)
+        if fleet:
+          fleet.move_to_planet(t)
+        else:
+          print " failed to build fleet"
+          count = 0
+          break
 
-      # for this builder, find the closest unowned planets
-      for t in unowned_targets:
-        t.distance_to_target = game.distance_between(p.location, t.location)
-      unowned_targets = sorted(unowned_targets, key=lambda planet: planet.distance_to_target)
+      unowned_targets.remove(t)
+      built += 1
+      p.arcs_can_build -= 1
+      p.arcs_built += 1
 
-      print "planet " + str(p) + " can build " + str(count) + " arcs"
-      while not done and count > 0 and p.can_build(arc):
-          t = unowned_targets[0]
-          print "looking to build to " + str(t) + " distance: " + str(t.distance_to_target)
-          if doupgrade:
-            fleet = p.build_fleet(arc)
-            if fleet:
-              fleet.move_to_planet(t)
-            else:
-              print " failed to build fleet"
-              count = 0
-              break
+      # cull this target from the list
+      for p in arc_builders:
+        p.targets.remove(t)
 
-          # cull this target from the list
-          unowned_targets.remove(t)
-          built += 1
-          count -= 1
-          maxarcs -= 1
-          if (maxarcs == 0):
-            done = True
-          if len(unowned_targets) == 0:
-            done = True
+      if maxarcs > 0 and built >= maxarcs:
+        break
+
+  # make sure we dont leave any extra metadata on the planets
+  for p in arc_builders:
+    del p.arcs_built
+    del p.arcs_can_build
+    del p.targets
 
   if built > 0:
     if doupgrade:
