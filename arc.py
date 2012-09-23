@@ -169,11 +169,11 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink, escort):
       if maxarcs > 0 and built >= maxarcs:
         break
 
-  # make sure we dont leave any extra metadata on the planets
-  for p in arc_builders:
-    del p.arcs_built
-    del p.arcs_can_build
-    del p.targets
+    # make sure we dont leave any extra metadata on the planets
+    for p in arc_builders:
+      del p.arcs_built
+      del p.arcs_can_build
+      del p.targets
 
   if built > 0:
     if doupgrade:
