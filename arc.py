@@ -154,8 +154,8 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink, escort):
           fleet.move_to_planet(t)
         else:
           print " failed to build fleet"
-          count = 0
-          break
+          p.arcs_can_build = 0
+          continue
 
       unowned_targets.remove(t)
       built += 1
