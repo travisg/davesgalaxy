@@ -1,5 +1,4 @@
 # vim: set ts=2 sw=2 expandtab:
-import cookielib
 import json
 import math
 import os
@@ -12,6 +11,7 @@ import time
 import types
 import urllib
 import urllib2
+import httplib
 from itertools import izip
 from BeautifulSoup import BeautifulSoup
 
@@ -345,17 +345,9 @@ class Planet:
     return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
   def load(self, force=False):
     if not force and self._loaded: return False
-    retrycount = 0
-    while retrycount < 5:
-      retrycount = retrycount + 1
-      try:
-        req = self.galaxy.opener.open(URL_PLANET_DETAIL % self.planetid)
-        retrycount = retrycount + 5
-      except urllib2.URLError:
-        print "url error, retrying"
-        pass
+    req = self.galaxy.urlopen(URL_PLANET_DETAIL % self.planetid)
 
-    soup = BeautifulSoup(json.load(req)['tab'])
+    soup = BeautifulSoup(json.loads(req)['tab'])
 
     self.society = int(soup('div',{'class':'info1'})[0]('div')[2].string)
     data = [x.string.strip() for x in soup('td',{'class':'planetinfo2'})]
@@ -443,11 +435,10 @@ class Planet:
       formdata['submit-build-another-%d' % self.planetid] =1
       for type,quantity in manifest.items():
         formdata['num-%s' % type] = quantity
-      req = self.galaxy.opener.open(URL_BUILD_FLEET % self.planetid,
+      req = self.galaxy.urlopen(URL_BUILD_FLEET % self.planetid,
                                     urllib.urlencode(formdata))
-      response = req.read()
-      if 'Fleet Built' in response: 
-        j = json.loads(response)
+      if 'Fleet Built' in req: 
+        j = json.loads(req)
         fleet = Fleet(self.galaxy,
                       j['newfleet']['i'],
                       [j['newfleet']['x'], j['newfleet']['y']],
@@ -464,7 +455,7 @@ class Planet:
           self.antimatter[0] -= cost['antimatter']
           self.krellmetal[0] -= cost['krellmetal']
         if interactive:
-          js = 'javascript:handleserverresponse(%s);' % response
+          js = 'javascript:handleserverresponse(%s);' % req
           subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
       else:
         sys.stderr.write('error when building')
@@ -494,8 +485,8 @@ class Planet:
     if self._upgrades: return self._upgrades
     self._upgrades = map(lambda x: UPGRADE_UNAVAILABLE, range(0,len(UPGRADES)))
     try:
-      req = self.galaxy.opener.open(URL_PLANET_UPGRADES % self.planetid)
-      soup = BeautifulSoup(json.load(req)['tab'])
+      req = self.galaxy.urlopen(URL_PLANET_UPGRADES % self.planetid)
+      soup = BeautifulSoup(json.loads(req)['tab'])
       for row in soup('tr')[1:]:
         if 'td' in str(row):
           cells=row('td')
@@ -512,9 +503,8 @@ class Planet:
                 self._upgrades[idx] = UPGRADE_INACTIVE
               elif '0%' in str(cells[3]):
                 self._upgrades[idx] = UPGRADE_STARTED_0
-    except urllib2.HTTPError:
-      sys.stderr.write('failed to read upgrades for planet %d/n' %
-                       self.planetid)
+    except:
+      pass
     return self._upgrades
   @property
   def upgrades(self):
@@ -546,22 +536,21 @@ class Planet:
     if not self.can_upgrade(upgrade):
       return False
 
-    try:
-      self.galaxy.opener.open(URL_PLANET_UPGRADE_ACTION %
-                              (self.planetid, 'start', index))
-      self.upgrades[index] = UPGRADE_STARTED_0
-      return True
-    except urllib2.HTTPError:
+    req = self.galaxy.urlopen(URL_PLANET_UPGRADE_ACTION %
+                            (self.planetid, 'start', index))
+    if req == None:
       return False
+
+    self.upgrades[index] = UPGRADE_STARTED_0
+    return True
   def scrap_upgrade(self, upgrade):
     index = UPGRADES.index(upgrade)
-    try:
-      self.galaxy.opener.open(URL_PLANET_UPGRADE_ACTION %
-                              (self.planetid, 'scrap', index))
-      self.upgrades[index] = UPGRADE_AVAILABLE
-      return True
-    except urllib2.HTTPError:
+    req = self.galaxy.urlopen(URL_PLANET_UPGRADE_ACTION %
+                            (self.planetid, 'scrap', index))
+    if req == None:
       return False
+    self.upgrades[index] = UPGRADE_AVAILABLE
+    return True
 
   def manage(self, name, taxrate, tariff):
     if (taxrate >= 0.0 and taxrate <= 30.0):
@@ -575,10 +564,9 @@ class Planet:
     formdata['name'] = self.name
     formdata['tariffrate'] = str(self.tarif)
     formdata['inctaxrate'] = str(self.tax)
-    req = self.galaxy.opener.open(URL_PLANET_MANAGE % self.planetid,
+    req = self.galaxy.urlopen(URL_PLANET_MANAGE % self.planetid,
                                   urllib.urlencode(formdata))
-    response = req.read()
-    success = 'Planet Managed' in response
+    success = 'Planet Managed' in req
     if not success:
       sys.stderr.write('%s/n' % response)
     return success
@@ -618,8 +606,8 @@ class Fleet:
         return False
       done = True
       try:
-        req = self.galaxy.opener.open(URL_FLEET_DETAIL % self.fleetid)
-        soup = BeautifulSoup(json.load(req)['pagedata'])
+        req = self.galaxy.urlopen(URL_FLEET_DETAIL % self.fleetid)
+        soup = BeautifulSoup(json.loads(req)['pagedata'])
         home = str(soup.find(text="Home Port:").findNext('td').string)
         homesplit = home.split('-')
         homeid = homesplit[len(homesplit)-1]
@@ -652,29 +640,17 @@ class Fleet:
         self.disposition = "unknown"
         self.speed = 0.0
         self.ships = dict()
-      except urllib2.HTTPError:
-        # stale fleet
-        self.destination = None
-        self.disposition = "unknown"
-        self.speed = 0.0
-        self.ships = dict()
-      except urllib2.URLError:
-        # http error with the server
-        print "http error, retrying"
-        time.sleep(1)
-        done = False
 
     self._loaded = True
     return True
   def move_to_planet(self, planet):
     formdata = {}
     formdata['planet' ] = planet.planetid
-    req = self.galaxy.opener.open(URL_MOVE_TO_PLANET % self.fleetid,
+    req = self.galaxy.urlopen(URL_MOVE_TO_PLANET % self.fleetid,
                                   urllib.urlencode(formdata))
-    response = req.read()
-    success = 'Destination Changed' in response
+    success = 'Destination Changed' in req
     if not success:
-      sys.stderr.write('%s/n' % response)
+      sys.stderr.write('%s/n' % req)
 
     # force a reload to get any new destination
     self.load(True)
@@ -687,12 +663,11 @@ class Fleet:
       insertion_point = route_shape.nearest_to(self.coords)
     formdata['sx'] = insertion_point[0]
     formdata['sy'] = insertion_point[1]
-    req = self.galaxy.opener.open(URL_MOVE_TO_ROUTE % self.fleetid,
+    req = self.galaxy.urlopen(URL_MOVE_TO_ROUTE % self.fleetid,
                                   urllib.urlencode(formdata))
-    response = req.read()
-    success = 'Fleet Routed' in response
+    success = 'Fleet Routed' in req
     if not success:
-      sys.stderr.write('%s/n' % response)
+      sys.stderr.write('%s/n' % req)
     # force a reload to get any new destination
     self.load(True)
     return success
@@ -704,12 +679,11 @@ class Fleet:
                                      points))
     if planetid:
       formdata['route'] = "%s, %s" % (formdata['route'], str(planetid))
-    req = self.galaxy.opener.open(URL_MOVE_ROUTE_TO % self.fleetid,
+    req = self.galaxy.urlopen(URL_MOVE_ROUTE_TO % self.fleetid,
                                   urllib.urlencode(formdata))
-    response = req.read()
-    success = 'Fleet Routed' in response
+    success = 'Fleet Routed' in req
     if not success:
-      sys.stderr.write('%s/n' % response)
+      sys.stderr.write('%s/n' % req)
     return success
   def at(self, planet):
     if not self.at_planet:
@@ -723,10 +697,9 @@ class Fleet:
   def scrap(self):
     if not self.at_planet:
       return False
-    req = self.galaxy.opener.open(URL_SCRAP_FLEET % self.fleetid)
-    response = req.read()
+    req = self.galaxy.urlopen(URL_SCRAP_FLEET % self.fleetid)
     fleet = None
-    return 'Fleet Scrapped' in response
+    return 'Fleet Scrapped' in req
   def shipcount(self):
     count = 0
     for s in self.ships:
@@ -751,10 +724,9 @@ class Route:
   def rename(self, name):
     formdata = {}
     formdata['name'] = name
-    req = self.galaxy.opener.open(URL_RENAME_ROUTE % self.routeid,
+    req = self.galaxy.urlopen(URL_RENAME_ROUTE % self.routeid,
                                   urllib.urlencode(formdata))
-    response = req.read()
-    if 'Route Renamed' in response: 
+    if 'Route Renamed' in req: 
       self.name = name
     return self.name
     
@@ -766,21 +738,70 @@ class Galaxy:
     self._routes = None
     self._stars = None # alien planets
     self._logged_in = False
-    self.jar = cookielib.LWPCookieJar()
+    self.session = None
     try:
-      self.jar.load(CREDENTIAL_CACHE_FILE)
+      cache_file = open(CREDENTIAL_CACHE_FILE, 'r')
+      cache_data = pickle.load(cache_file)
+      cache_file.close()
+      self.session = cache_data
       self._logged_in = True
     except:
       pass
-    self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.jar))
+    self.http = httplib.HTTPConnection("davesgalaxy.com")
+    self.http.connect()
   def login(self, u='', p='', force=False):
     if force or not self._logged_in:
-      self.opener.open(URL_LOGIN,
+      self.urlopen(URL_LOGIN,
         urllib.urlencode(dict(usernamexor=u, passwordxor=p)))
-      self.jar.save(CREDENTIAL_CACHE_FILE)
-      self._logged_in = True
+      if self.session != None:
+        self._logged_in = True
+        self.write_cache(CREDENTIAL_CACHE_FILE, self.session)
     else:
       sys.stderr.write("using stored credentials\n")
+
+  def urlopen(self, url, data=None):
+    #print "opening url %s" % url
+    #print data
+
+#    i = 0
+#    req = None
+#    while i < 5:
+#      i = i + 1
+#      try:
+#        req = self.opener.open(url)
+#        break
+#      except urllib2.HTTPError:
+#        sys.stderr.write("http error opening url %s, attempt %d" % (str(url), i))
+#        time.sleep(1)
+    
+    # construct a http header
+    sessionheader = {}
+    if self.session:
+      sessionheader["Cookie"] = self.session.split(";")[0]
+      #print sessionheader
+    headers = {"Content-Type": "application/x-www-form-urlencoded", 
+               "Accept": "application/json, text/javascript, */*",
+               "Connection": "keep-alive",
+    }
+    headers.update(sessionheader)
+
+    if data != None:
+      self.http.request("POST", url, data, headers)
+    else:
+      self.http.request("GET", url, None, headers)
+ 
+    r1 = self.http.getresponse()
+    #print r1.status, r1.reason
+
+    # look for login session
+    session = r1.getheader("set-cookie")
+    if session != None:
+      self.session = session
+
+    req = r1.read()
+
+    #print req
+    return req
 
   def get_planet(self, id):
     for p in self.planets:
@@ -868,8 +889,8 @@ class Galaxy:
     planets = []
     while True:
       try:
-        req = self.opener.open(URL_PLANETS % i)
-        soup = BeautifulSoup(json.load(req)['tab'])
+        req = self.urlopen(URL_PLANETS % i)
+        soup = BeautifulSoup(json.loads(req)['tab'])
         for row in soup('tr')[1:]:
           cells=row('td')
           planetid=re.search(r'/planets/([0-9]*)/',
@@ -887,11 +908,10 @@ class Galaxy:
 
           planets.append(Planet(self, planetid, name, location))
         i += 1
-      except urllib2.HTTPError:
-        sys.stderr.write('http error\n')
-        break
       except KeyError:
         sys.stderr.write('key error\n')
+        break
+      except ValueError:
         break
     self._planets = planets
     self.write_planet_cache()
@@ -908,8 +928,8 @@ class Galaxy:
     fleets = []
     while True:
       try:
-        req = self.opener.open(URL_FLEETS % i)
-        soup = BeautifulSoup(json.load(req)['tab'])
+        req = self.urlopen(URL_FLEETS % i)
+        soup = BeautifulSoup(json.loads(req)['tab'])
         for row in soup('tr')[1:]:
           cells=row('td')
           fleetid=re.search(r'/fleets/([0-9]*)/',
@@ -924,9 +944,9 @@ class Galaxy:
           at_planet = bool(re.search(r'\'scrapfleet\':[0-9]+', str(row)))
           fleets.append(Fleet(self, fleetid, coords, at=at_planet))
         i += 1
-      except urllib2.HTTPError:
-        break
       except KeyError:
+        break
+      except ValueError:
         break
     self._fleets = fleets
     self.write_fleet_cache()
@@ -936,10 +956,9 @@ class Galaxy:
     formdata = {}
     formdata['0'] = 1
     formdata['getnamedroutes'] = 'yes'
-    req = self.opener.open(URL_SECTORS,
+    req = self.urlopen(URL_SECTORS,
                            urllib.urlencode(formdata))        
-    response = req.read()
-    j = json.loads(response)
+    j = json.loads(req)
 
     routes = self.parse_routes(j)
     if self._routes:
@@ -964,11 +983,10 @@ class Galaxy:
         formdata[str(sector)] = 1
     if routes:
       formdata['getnamedroutes'] = 'yes'
-    req = self.opener.open(URL_SECTORS,
+    req = self.urlopen(URL_SECTORS,
                            urllib.urlencode(formdata))        
-    response = req.read()
-    #sys.stderr.write('%s\n' % response)
-    return response
+    #print req
+    return req
 
   def load_sectors(self, bounding_box):
     #print "load sectors " + str(bounding_box)
@@ -1031,12 +1049,11 @@ class Galaxy:
     formdata['route'] = ','.join(map(lambda p: 
                                      '/'.join(map(lambda x: str(x), p)), 
                                      points))
-    req = self.opener.open(URL_BUILD_ROUTE,
+    req = self.urlopen(URL_BUILD_ROUTE,
                            urllib.urlencode(formdata))
-    response = req.read()
     route = None
-    if 'Route Built' in response: 
-      j = json.loads(response)
+    if 'Route Built' in req: 
+      j = json.loads(req)
       routeid = int(j['sectors']['routes'].keys()[0])
       route = Route(self, routeid, circular, name, points)
       self.routes[routeid] = route
