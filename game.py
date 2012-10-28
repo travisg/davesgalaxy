@@ -32,6 +32,7 @@ URL_MOVE_ROUTE_TO = HOST + "/fleets/%d/routeto/"
 URL_BUILD_FLEET = HOST + "/planets/%d/buildfleet/"
 URL_SCRAP_FLEET = HOST + "/fleets/%d/scrap/"
 URL_BUILD_ROUTE = HOST + '/routes/named/add/'
+URL_DELETE_ROUTE = HOST + '/routes/%d/delete/'
 URL_RENAME_ROUTE = HOST + '/routes/%d/rename/'
 URL_SECTORS = HOST + "sectors/"
 
@@ -626,6 +627,20 @@ class Fleet:
           self.speed = float(soup.find(text="Current Speed:")
                              .findNext('td').string)
         except: self.speed = 0
+
+        try:
+          routestr = soup.find(text="On Route:").findNext('td').string
+
+          if routestr.find("Named Route --") == 0:
+            # this has a named route field in the format 'Named Route -- <name of the route with spaces>(number)'
+            a = routestr.rsplit(')')
+            b = a[0].rsplit('(')
+            routeid = int(b[1])
+            self.routeid = routeid
+        except:
+          self.routeid = -1
+          pass
+
         self.ships = dict()
         try:
           for k,v in pairs(soup('h3')[0].findAllNext('td')):
@@ -729,7 +744,16 @@ class Route:
     if 'Route Renamed' in req: 
       self.name = name
     return self.name
-    
+  def delete(self):
+    formdata = {}
+    formdata['hi'] = 1
+    req = self.galaxy.urlopen(URL_DELETE_ROUTE % self.routeid,
+                                  urllib.urlencode(formdata))
+    if 'Route Deleted' in req: 
+      # remove us from the galaxy we're in
+      del self.galaxy.routes[self.routeid]
+      return True
+    return False
 
 class Galaxy:
   def __init__(self):
@@ -1058,7 +1082,7 @@ class Galaxy:
       route = Route(self, routeid, circular, name, points)
       self.routes[routeid] = route
     return route
-      
+
   def write_planet_cache(self):
     # TODO: planets fail to pickle due to a lock object, write a reduce
     print "writing planet cache..."
