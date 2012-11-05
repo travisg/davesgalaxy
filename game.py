@@ -43,7 +43,7 @@ UPGRADE_STARTED = 3
 UPGRADE_STARTED_0 = 4
 UPGRADE_ACTIVE = 5
 
-CACHE_STALE_TIME = 5 * 60 * 60
+CACHE_STALE_TIME = 8 * 60 * 60
 PLANET_CACHE_FILE = 'planet.dat'
 FLEET_CACHE_FILE = 'fleet.dat'
 CREDENTIAL_CACHE_FILE = 'login.dat'
@@ -78,7 +78,7 @@ ALL_SHIPS = {
            'population':2000,
            'food':1000,
            'antimatter':500,
-           'money':4331,
+           'money':10000,
            'krellmetal':0,
            'needbase':False},
   'blackbirds': {'steel':500,
@@ -86,7 +86,7 @@ ALL_SHIPS = {
                  'population':5,
                  'food':5,
                  'antimatter':125,
-                 'money':4331,
+                 'money':9500,
                  'krellmetal':50,
                  'needbase':False},
   'merchantmen': {'steel':750,
@@ -118,7 +118,7 @@ ALL_SHIPS = {
                  'population':60,
                  'food':70,
                  'antimatter':276,
-                 'money':2174,
+                 'money':5000,
                  'krellmetal':0,
                  'needbase':False},
   'frigates': {'steel':950,
@@ -134,7 +134,7 @@ ALL_SHIPS = {
                'population':80,
                'food':100,
                'antimatter':385,
-               'money':6497,
+               'money':14000,
                'krellmetal':67,
                'needbase':True},
   'harvesters': {'steel':5000,
@@ -207,8 +207,6 @@ def ParseFleet(fleetstr):
 
   if fleetstr == None:
     return fleet
-
-  fleetstr = fleetstr.lower()
 
   #print "parsefleet " + fleetstr
 
