@@ -1,0 +1,62 @@
+#!/usr/bin/env python
+# vim: set ts=2 sw=2 expandtab:
+
+import game
+from optparse import OptionParser
+import sys
+import shape
+
+def main():
+  parser = OptionParser()
+  parser.add_option("-U", "--username", dest="username",
+                    help="username of login")
+  parser.add_option("-P", "--password", dest="password",
+                    help="password for login")
+  parser.add_option("-n", "--noupgrade", dest="doupgrade",
+                    action="store_false", default=True, help="dry run")
+
+  parser.add_option("-d", "--disposition", dest="disposition",
+                    type="string", default="", help="only for fleets with this disposition")
+  parser.add_option("-s", "--source_route", dest="source",
+                    type="string", help="route enclosing source")
+
+  (options, args) = parser.parse_args()
+
+  if options.source == None:
+    print "not enough arguments"
+    parser.print_help()
+    sys.exit(1)
+
+  print "options " + str(options)
+
+  g=game.Galaxy()
+  if options.username and options.password:
+    # explicit login
+    g.login(options.username, options.password, force=True)
+  else:
+    # try to pick up stored credentials
+    g.login()
+
+  try:
+    source_route = g.find_route(options.source)
+    source_shape = shape.Polygon(*(source_route.points))
+  except:
+    print "could't find source route"
+    sys.exit(1)
+
+  SendHome(g, options.doupgrade, source_shape, options.disposition)
+
+def SendHome(g, doupgrade, source, disposition=""):
+  g.load_fleet_cache()
+
+  for f in g.fleets:
+    if source.inside(f.coords):
+      if disposition == "" or f.disposition == disposition:
+        print "moving fleet %s to home planet %s" % (f, f.home)
+        if doupgrade:
+          success = f.move_to_planet(f.home)
+  
+  g.write_fleet_cache()
+
+if __name__ == "__main__":
+    main()
