@@ -50,6 +50,7 @@ def SendHome(g, doupgrade, source, disposition=""):
   g.load_fleet_cache()
 
   for f in g.fleets:
+    f.load()
     if source.inside(f.coords):
       if disposition == "" or f.disposition == disposition:
         print "moving fleet %s to home planet %s" % (f, f.home)
