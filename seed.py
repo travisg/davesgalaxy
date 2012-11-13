@@ -31,13 +31,19 @@ def main():
                     action="store", type="float", help="source y coordinate")
   parser.add_option("-r", "--sr", dest="sr",
                     action="store", type="float", default=20.0, help="builder radius to consider")
-
   parser.add_option("-s", "--source_route", dest="source",
                     type="string", help="route enclosing source")
 
+  parser.add_option("-X", "--tx", dest="tx",
+                    action="store", type="float", default=-1.0, help="target x coordinate")
+  parser.add_option("-Y", "--ty", dest="ty",
+                    action="store", type="float", default=-1.0, help="target y coordinate")
+  parser.add_option("-R", "--tr", dest="targetradius",
+                    action="store", type="float", default=-1.0, help="target radius")
+
   (options, args) = parser.parse_args()
 
-  if ((options.sx == None or options.sy == None) and options.source == None) or options.fleet == None:
+  if ((options.sx == None or options.sy == None) and options.source == None) or options.fleet == None or options.targetradius < 0:
     print "not enough arguments"
     parser.print_help()
     sys.exit(1)
@@ -57,13 +63,14 @@ def main():
     source_route = g.find_route(options.source)
     source_shape = shape.Polygon(*(source_route.points))
   else:
-    source_shape = shape.Circle([options.tx, options.ty], options.tr)
+    source_shape = shape.Circle([options.sx, options.sy], options.sr)
 
   SeedArcs(g, options.doupgrade, 
             source_shape, options.fleet, 
+            options.tx, options.ty, options.targetradius,
             options.mindistance, options.maxdistance, options.size)
 
-def SeedArcs(g, doupgrade, source, fleetstr, mindistance, maxdistance, size):
+def SeedArcs(g, doupgrade, source, fleetstr, targetx, targety, targetradius, mindistance, maxdistance, size):
 
   fleet = game.ParseFleet(fleetstr)
   print fleet
@@ -88,9 +95,21 @@ def SeedArcs(g, doupgrade, source, fleetstr, mindistance, maxdistance, size):
 
     done = False
     while not done:
-      # pick a random spot approximately near the starting location
-      x = random.uniform(p.location[0] - maxdistance, p.location[0] + maxdistance)
-      y = random.uniform(p.location[1] - maxdistance, p.location[1] + maxdistance)
+      if targetx >= 0 and targety >= 0:
+        # if target x,y was passed in, select a spot around it
+        startx = targetx
+        starty = targety
+      else:
+        # pick a random spot approximately near the starting location
+        startx = p.location[0]
+        starty = p.location[1]
+
+      x = random.uniform(startx - targetradius, startx + targetradius)
+      y = random.uniform(starty - targetradius, starty + targetradius)
+
+      distance = game.distance_between((startx,starty),(x,y))
+      if distance > targetradius:
+        continue
 
       distance = game.distance_between((x,y),p.location)
       if maxdistance > 0 and distance > maxdistance:
