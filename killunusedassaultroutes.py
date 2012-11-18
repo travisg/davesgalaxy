@@ -41,7 +41,7 @@ def main():
         used = True
         break
 
-    if not used:
+    if not used and route.name.find("assault") == 0:
       print "route %s is unused" % route.name
       if options.doupgrade:
         print "removing"
