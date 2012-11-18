@@ -36,14 +36,18 @@ def ScrapHome(g, doupgrade, disposition=""):
 
   for f in g.fleets:
     f.load()
-    #print f.at_planet
-    #print f.home
-    #print f.destination
-    if f.at(f.home) and f.destination == f.home:
-      if disposition == "" or f.disposition == disposition:
-        print "fleet %s is at home" % f
-        if doupgrade:
-          success = f.scrap()
+    if f.at_planet:
+      #print "fleet %s home %s dest %s" % (f, f.home, f.destination)
+      if f.at(f.home):
+        try:
+          if f.destination == f.home:
+            if disposition == "" or f.disposition == disposition:
+              print "fleet %s is at home" % f
+              if doupgrade:
+                print "scrapping fleet..."
+                success = f.scrap()
+        except:
+          continue
   
   g.write_fleet_cache()
 
