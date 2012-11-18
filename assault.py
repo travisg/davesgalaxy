@@ -14,19 +14,20 @@ def main():
                     help="password for login")
   parser.add_option("-n", "--noupgrade", dest="doupgrade",
                     action="store_false", default=True, help="dry run")
-  parser.add_option("-m", "--minfleet", dest="minfleet",
-                    action="store", type="int", default=10, help="minimum sized fleet to build")
 
+  # all required
+  parser.add_option("-f", "--fleet", dest="fleetstr",
+                    action="store", type="string", help="fleet type")
   parser.add_option("-o", "--owner", dest="owner",
                     type="string", help="owner to assault")
   parser.add_option("-s", "--source_route", dest="source",
                     type="string", help="route enclosing source")
-  parser.add_option("-S", "--sink_route", dest="sink",
-                    type="string", help="route enclosing sink")
+  parser.add_option("-d", "--dest_route", dest="dest",
+                    type="string", help="route enclosing dest")
 
   (options, args) = parser.parse_args()
 
-  if options.source == None or options.sink == None or options.owner == None:
+  if options.dest == None or options.owner == None or options.fleetstr == None:
     print "not enough arguments"
     parser.print_help()
     sys.exit(1)
@@ -43,29 +44,34 @@ def main():
 
   g.load_routes()
   try:
-    sink_route = g.find_route(options.sink)
-    sink_shape = shape.Polygon(*(sink_route.points))
+    dest_route = g.find_route(options.dest)
+    dest_shape = shape.Polygon(*(dest_route.points))
   except:
-    print "could't find sink route"
+    print "could't find dest route"
     sys.exit(1)
 
-  try:
-    source_route = g.find_route(options.source)
-    source_shape = shape.Polygon(*(source_route.points))
-  except:
-    print "could't find source route"
-    sys.exit(1)
+  source_shape = None
+  if options.source:
+    try:
+      source_route = g.find_route(options.source)
+      source_shape = shape.Polygon(*(source_route.points))
+    except:
+      print "could't find source route"
+      sys.exit(1)
 
-  print source_shape
-  print sink_shape
+  #print source_shape
+  #print dest_shape
 
-  Assault(g, options.doupgrade, options.minfleet, source_shape, sink_shape, options.owner)
+  Assault(g, options.doupgrade, options.fleetstr, source_shape, dest_shape, options.owner)
 
 def MakePoints(location):
   points = (location[0] - .2, location[1]),(location[0] + .2, location[1])
   return points
 
-def Assault(g, doupgrade, minfleet, source, sink, owner):
+def Assault(g, doupgrade, fleetstr, source, dest, owner):
+  f = game.ParseFleet(fleetstr)
+  print f
+
   built = 0
 
   # find a list of potential fleet builders
@@ -73,12 +79,12 @@ def Assault(g, doupgrade, minfleet, source, sink, owner):
   total_fleets = 0
   fleet_builders = []
   for p in g.planets:
-    if source.inside(p.location):
+    if source == None or source.inside(p.location):
       p.load()
-      count = p.how_many_can_build({'frigates': minfleet})
+      count = p.how_many_can_build(f)
       if count > 0:
         print "planet " + str(p) + " can build " + str(count) + " fleets"
-        p.distance_to_target = sink.distance(p.location)
+        p.distance_to_target = dest.distance(p.location)
         fleet_builders.append(p)
         total_fleets += count
 
@@ -89,7 +95,7 @@ def Assault(g, doupgrade, minfleet, source, sink, owner):
 
   # load the sectors around the target point
   print "looking for owned planets at target location..."
-  sect = g.load_sectors(sink.bounding_box())
+  sect = g.load_sectors(dest.bounding_box())
   #print sect
   targets = []
   for p in sect["planets"]["owned"]:
@@ -106,7 +112,6 @@ def Assault(g, doupgrade, minfleet, source, sink, owner):
   build = 0
   if len(targets) > 0:
     print "building assault fleets"
-    f = { 'frigates': minfleet }
     done = False
     for p in fleet_builders:
       if done:
