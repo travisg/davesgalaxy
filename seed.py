@@ -65,10 +65,16 @@ def main():
   else:
     source_shape = shape.Circle([options.sx, options.sy], options.sr)
 
+  g.load_planet_cache()
+  g.load_fleet_cache()
+
   SeedArcs(g, options.doupgrade, 
             source_shape, options.fleet, 
             options.tx, options.ty, options.targetradius,
             options.mindistance, options.maxdistance, options.size)
+
+  g.write_planet_cache()
+  g.write_fleet_cache()
 
 def SeedArcs(g, doupgrade, source, fleetstr, targetx, targety, targetradius, mindistance, maxdistance, size):
 
@@ -148,9 +154,6 @@ def SeedArcs(g, doupgrade, source, fleetstr, targetx, targety, targetradius, min
         else:
           print " failed to build fleet"
           continue
-
-  g.write_planet_cache()
-  g.write_fleet_cache()
 
 if __name__ == "__main__":
     main()
