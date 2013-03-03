@@ -79,6 +79,9 @@ def RedirAssaults(g, doupgrade):
 #  print "routes around unowned planets:"
 #  print assaultroutesnotowned
 
+  for route in assaultroutesnotowned:
+    route.fleetcount = 0
+
   # go through the list of fleets orbiting planets we own and find a new place to redir them to
   for route in assaultroutesowned:
     for f in g.fleets:
@@ -91,8 +94,31 @@ def RedirAssaults(g, doupgrade):
         targets = sorted(assaultroutesnotowned, key=lambda route: game.distance_between(route.points[0], f.coords))
         #print targets
 
-        targetroute = targets[0]
+        # try to find a nearby target route, but not pile entirely on one
+        # algorithm: pick the closest, least used target route from the list
+        # of target routes within 20 units of distance of the nearest one
+        mindistance = game.distance_between(targets[0].points[0], f.coords)
+
+        minfleets = -1
+        for t in targets:
+          distance = game.distance_between(t.points[0], f.coords)
+          if distance - mindistance < 20:
+            if minfleets < 0 or t.fleetcount < minfleets:
+              minfleets = t.fleetcount
+
+        foundtarget = targets[0]
+        for t in targets:
+          distance = game.distance_between(t.points[0], f.coords)
+          #print "%s %d %d %d" % (t, t.fleetcount, distance, mindistance)
+          if distance - mindistance < 20:
+            if t.fleetcount == minfleets:
+              foundtarget = t
+              break
+
+        targetroute = foundtarget
         print "nearest route around planet under assault at %s" % targetroute
+
+        targetroute.fleetcount += 1
 
         if doupgrade:
           print "moving fleet to new route"
