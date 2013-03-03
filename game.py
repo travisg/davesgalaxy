@@ -12,6 +12,9 @@ import types
 import urllib
 import urllib2
 import httplib
+import zlib
+import gzip
+import StringIO
 from itertools import izip
 from BeautifulSoup import BeautifulSoup
 
@@ -815,6 +818,7 @@ class Galaxy:
         #print sessionheader
       headers = {"Content-Type": "application/x-www-form-urlencoded",
                  "Accept": "application/json, text/javascript, */*",
+                 "Accept-Encoding": "gzip",
                  "Connection": "keep-alive",
       }
       headers.update(sessionheader)
@@ -839,6 +843,14 @@ class Galaxy:
         self.session = session
 
       req = r1.read()
+
+      # if it's gzipped, decompress it
+      encoding = r1.getheader("content-encoding", "")
+      if encoding in ("gzip"):
+        #print "GZIP compressed len %d" % len(req)
+        f = gzip.GzipFile('', 'rb', 9, StringIO.StringIO(req))
+        req = f.read()
+        #print "uncompressed len %d" % len(req)
 
       #print req
       return req
