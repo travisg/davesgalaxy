@@ -66,7 +66,6 @@ def main():
     source_shape = shape.Circle([options.sx, options.sy], options.sr)
 
   g.load_planet_cache()
-  g.load_fleet_cache()
 
   SeedArcs(g, options.doupgrade, 
             source_shape, options.fleet, 
@@ -74,7 +73,6 @@ def main():
             options.mindistance, options.maxdistance, options.size)
 
   g.write_planet_cache()
-  g.write_fleet_cache()
 
 def SeedArcs(g, doupgrade, source, fleetstr, targetx, targety, targetradius, mindistance, maxdistance, size):
 
@@ -122,7 +120,7 @@ def SeedArcs(g, doupgrade, source, fleetstr, targetx, targety, targetradius, min
         continue
       if mindistance > 0 and distance < mindistance:
         continue
-  
+
       #print x
       #print y
 
