@@ -37,6 +37,7 @@ def main():
     # try to pick up stored credentials
     g.login()
 
+  g.load_routes()
   try:
     source_route = g.find_route(options.source)
     source_shape = shape.Polygon(*(source_route.points))
@@ -44,11 +45,11 @@ def main():
     print "could't find source route"
     sys.exit(1)
 
-  g.load_routes()
   try:
     dest_route = g.find_route(options.dest)
+    destshape = shape.Polygon(*(dest_route.points))
   except:
-    print "could't find sink route"
+    print "could't find dest route"
     sys.exit(1)
 
   MoveFleets(g, options.doupgrade, source_shape, dest_route)
@@ -58,9 +59,10 @@ def MoveFleets(g, doupgrade, source, dest):
 
   for f in g.fleets:
     if source.inside(f.coords):
-      print "moving fleet %s" % f
-      if doupgrade:
-        success = f.move_to_route(dest)
+      #if f.disposition == "Trade":
+        print "moving fleet %s" % f
+        if doupgrade:
+          success = f.move_to_route(dest)
   
   g.write_fleet_cache()
 
