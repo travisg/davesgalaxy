@@ -5,6 +5,7 @@ import game
 from optparse import OptionParser
 import sys
 import shape
+import random
 
 def main():
   parser = OptionParser()
@@ -18,6 +19,8 @@ def main():
                     type="string", help="source route area")
   parser.add_option("-d", "--dest_route", dest="dest",
                     type="string", help="destination route area")
+  parser.add_option("-r", "--random", dest="random",
+                    action="store_true", default=False, help="pick a random planet in the target area")
 
   (options, args) = parser.parse_args()
 
@@ -54,12 +57,12 @@ def main():
   RedirArcsFromOwned(g, options.doupgrade, source_shape, dest_shape)
   RedirReturningArcs(g, options.doupgrade, source_shape, dest_shape)
 
-#  RedirArcsFromSource(g, options.doupgrade, source_shape, dest_shape)
+#  RedirArcsFromSource(g, options.doupgrade, source_shape, dest_shape, options.random)
 
   g.write_fleet_cache()
 
 # redirect all arcs with targets in source shape into dest shape
-def RedirArcsFromSource(g, doupgrade, source_shape, dest_shape):
+def RedirArcsFromSource(g, doupgrade, source_shape, dest_shape, random, overlap=True, rearrange=False):
 
   print "finding planets in source sector..."
   source_targets = game.FindAllPlanetsInShape(g, source_shape)
@@ -69,17 +72,22 @@ def RedirArcsFromSource(g, doupgrade, source_shape, dest_shape):
   targets = game.FindUnownedPlanetsInShape(g, dest_shape)
   print "%d unowned planets in target sector" % len(targets)
 
-  print "removing overlap planets from source..."
-  for p in targets:
-    for s in source_targets:
-      if p.planetid == s.planetid:
-        targets.remove(p)
+  # only handle planets that aren't in source
+  if overlap:
+    print "removing overlap planets from source..."
+    for p in targets:
+      for s in source_targets:
+        if p.planetid == s.planetid:
+          targets.remove(p)
+          break
 
   print "%d unowned planets in target sector" % len(targets)
-
-  print "removing already targetted planets in target sector..."
-  targets = game.TrimColonyTargettedPlanets(g, targets)
-  print "%d unowned planets in target sector" % len(targets)
+  
+  # if we're rearranging things, then consider targets that are already targetted
+  if not rearrange:
+    print "removing already targetted planets in target sector..."
+    targets = game.TrimColonyTargettedPlanets(g, targets)
+    print "%d unowned planets in target sector" % len(targets)
 
   if len(targets) == 0:
     print "all planets in destination already claimed"
@@ -93,20 +101,26 @@ def RedirArcsFromSource(g, doupgrade, source_shape, dest_shape):
         #print "found potential arc fleet %s, destination %s" % (f, f.destination)
 
         dest_planet_id = game.FleetDestToPlanetID(f.destination)
+        if dest_planet_id != None:
+          for p in source_targets:
+            if int(p.planetid) == int(dest_planet_id):
+              print "found arc %s heading into source space" % f
 
-        for p in source_targets:
-          if int(p.planetid) == int(dest_planet_id):
+              redir_arcs.append(f)
+        else:
+          #print "not going to planet"
+          #print f.destination
+          if source_shape.inside(f.destination):
             print "found arc %s heading into source space" % f
 
             redir_arcs.append(f)
-            break
     except:
       pass
 
 
   print "%d arcs to redirect from source" % len(redir_arcs)
 
-  RedirArcs(g, doupgrade, redir_arcs, targets)
+  RedirArcs(g, doupgrade, redir_arcs, targets, random)
 
 # redirect arcs with their home as their target
 def RedirReturningArcs(g, doupgrade, source_shape, dest_shape):
@@ -178,34 +192,54 @@ def RedirArcsFromOwned(g, doupgrade, source_shape, dest_shape):
 
   RedirArcs(g, doupgrade, redir_arcs, targets)
 
-def RedirArcs(g, doupgrade, arc_fleets, targets):
+def RedirArcs(g, doupgrade, arc_fleets, targets, rand=False):
   print "redirecting %d arcs to %d targets" % (len(arc_fleets), len(targets))
 
-  # sort the shortest distances for each fleet
-  for f in arc_fleets:
-    f.targets = sorted(targets, key=lambda planet: game.distance_between(f.coords, planet.location))
+  #print arc_fleets
+  #print targets
+  #sys.exit(1)
 
-  # iterate over all the fleets, building the shortest route of all of them
-  while len(arc_fleets) > 0 and len(targets) > 0:
-    # sort all of the remaining arcs by their shortest route
-    arc_fleets = sorted(arc_fleets, key=lambda fleet: game.distance_between(fleet.coords, fleet.targets[0].location))
-
-    arc = arc_fleets[0]
-    target = arc.targets[0]
-    print "moving fleet %s to planet %s, distance %f" % (arc, target, game.distance_between(arc.coords, target.location))
-    if doupgrade:
-      arc.move_to_planet(target)
-
-    # remove this fleet and this target out of all of the lists
-    arc_fleets.remove(arc)
+  if rand:
     for f in arc_fleets:
-      f.targets.remove(target)
+      index = random.randrange(0, len(targets)-1)
+      t = targets[index]
+      print "moving fleet %s to planet %s, distance %f" % (f, t, game.distance_between(f.coords, t.location))
 
-    # trim the master target list
-    targets.remove(target)
+      if doupgrade:
+        f.move_to_planet(t)
 
-  for f in arc_fleets:
-    del f.targets
+      # try not to pick this one again
+      targets.remove(t)
+      
+      if len(targets) == 0:
+        print "ran out of targets"
+        break
+  else: # not random
+    # sort the shortest distances for each fleet
+    for f in arc_fleets:
+      f.targets = sorted(targets, key=lambda planet: game.distance_between(f.coords, planet.location))
+
+    # iterate over all the fleets, building the shortest route of all of them
+    while len(arc_fleets) > 0 and len(targets) > 0:
+      # sort all of the remaining arcs by their shortest route
+      arc_fleets = sorted(arc_fleets, key=lambda fleet: game.distance_between(fleet.coords, fleet.targets[0].location))
+
+      arc = arc_fleets[0]
+      target = arc.targets[0]
+      print "moving fleet %s to planet %s, distance %f" % (arc, target, game.distance_between(arc.coords, target.location))
+      if doupgrade:
+        arc.move_to_planet(target)
+
+      # remove this fleet and this target out of all of the lists
+      arc_fleets.remove(arc)
+      for f in arc_fleets:
+        f.targets.remove(target)
+
+      # trim the master target list
+      targets.remove(target)
+
+    for f in arc_fleets:
+      del f.targets
 
 if __name__ == "__main__":
     main()
