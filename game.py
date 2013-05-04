@@ -846,7 +846,7 @@ class Galaxy:
 
       # if it's gzipped, decompress it
       encoding = r1.getheader("content-encoding", "")
-      if encoding in ("gzip"):
+      if encoding == "gzip":
         #print "GZIP compressed len %d" % len(req)
         f = gzip.GzipFile('', 'rb', 9, StringIO.StringIO(req))
         req = f.read()
@@ -980,7 +980,7 @@ class Galaxy:
     self.load_fleet_cache()
     if self._fleets: return self._fleets
 
-    sys.stderr.write('no fleet cache, fetching list of planets\n')
+    sys.stderr.write('no fleet cache, fetching list of fleets\n')
     i=1
     fleets = []
     while True:
