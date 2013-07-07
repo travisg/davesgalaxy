@@ -29,6 +29,8 @@ URL_PLANET_UPGRADE_ACTION =  HOST + "/planets/%d/upgrades/%s/%d/"
 URL_PLANET_MANAGE = HOST + "/planets/%d/manage/"
 URL_PLANET_BUDGET = HOST + "/planets/%d/budget/"
 URL_FLEET_DETAIL = HOST + "/fleets/%d/info/"
+URL_PLANETS_JSON = HOST + "/planets/list2/"
+URL_FLEETS_JSON = HOST + "/fleets/list2/"
 URL_MOVE_TO_PLANET = HOST + "/fleets/%d/movetoplanet/"
 URL_MOVE_TO_ROUTE = HOST + "/fleets/%d/onto/"
 URL_MOVE_ROUTE_TO = HOST + "/fleets/%d/routeto/"
@@ -333,7 +335,7 @@ def FleetDestToPlanetID(destination):
 
 
 class Planet:
-  def __init__(self, galaxy, planetid, name='unknown', location=None, owner=ME):
+  def __init__(self, galaxy, planetid='0', name='unknown', location=None, owner=ME):
     self.galaxy = galaxy
     self.planetid = int(planetid)
     self.owner = str(owner)
@@ -379,21 +381,85 @@ class Planet:
     try:
       self.population=int(data[i]) ; i+=1
       self.money=int(data[i].split()[0]) ; i+=1
-      self.steel=map(int, data[i:i+3]) ; i+=3
-      self.unobtanium=map(int, data[i:i+3]) ; i+=3
-      self.strageness=map(int, data[i:i+3]) ; i+=3
-      self.food=map(int, data[i:i+3]) ; i+=3
-      self.antimatter=map(int, data[i:i+3]) ; i+=3
-      self.consumergoods=map(int, data[i:i+3]) ; i+=3
-      self.charm=map(int, data[i:i+3]) ; i+=3
-      self.helium3=map(int, data[i:i+3]) ; i+=3
-      self.hydrocarbon=map(int, data[i:i+3]) ; i+=3
-      self.krellmetal=map(int, data[i:i+3]) ; i+=3
+      self.steel=int(data[i:i+3]) ; i+=3
+      self.unobtanium=int(data[i:i+3]) ; i+=3
+      self.strangeness=int(data[i:i+3]) ; i+=3
+      self.food=int(data[i:i+3]) ; i+=3
+      self.antimatter=int(data[i:i+3]) ; i+=3
+      self.consumergoods=int(data[i:i+3]) ; i+=3
+      self.charm=int(data[i:i+3]) ; i+=3
+      self.helium3=int(data[i:i+3]) ; i+=3
+      self.hydrocarbon=int(data[i:i+3]) ; i+=3
+      self.krellmetal=int(data[i:i+3]) ; i+=3
     except IndexError:
       sys.stderr.write("loaded alien planet\n")
     self.loadUpgrades()
     self._loaded = True
     return True
+  def load_from_json(self, data, resource_map):
+#   resources:
+# {u'steel': 9,
+#  u'unobtanium': 11,
+#  u'strangeness': 10,
+#  u'people': 7,
+#  u'food': 3,
+#  u'antimatter': 0,
+#  u'consumergoods': 2,
+#  u'charm': 1,
+#  u'quatloos': 8,
+#  u'helium3': 4,
+#  u'hydrocarbon': 5,
+#  u'krellmetal': 6}
+#  planet data:
+#   data map from top level view.js
+#   { "name":3,"sector_id":2,"hexcolor":6,"inctaxrate":9,"tariffrate":10,"y":12,"society":4,"sensorrange":5,"r":7,"flags":13,"resourcelist":8,"x":11,"id":0,"owner_id":1, };
+#   flags from view.js
+#   { "farm_subsidies":512,"in_nebulae":8192,"open_trade":64,"food_subsidy":1,"famine":2,"player_owned":128,"military_base":16,"matter_synth1":8,"matter_synth2":32,"can_build_ships":4096,"planetary_defense":256,"damaged":2048,"drilling_subsidies":1024,"rgl_govt":4, };
+#  0:  [5994573, id
+#  1:  953, owner
+#  2:  228228, sector
+#  3:  u'Theta Auriinus', name
+#  4:  79, society level
+#  5:  2.28, scanner range
+#  6:  u'#ffff73', color
+#  7:  0.0537592276003, radius
+#  8:  [100619, 0, 135671, 237091, 0, 248002, 15272, 14021240, 9261281, 25479, 0, 4149], resourcelist
+#  9:  30.0, tax rate
+#  10: 0.0, tariff rate
+#  11: 1140.16897901, xcoord
+#  12: 1140.79188543, ycoord
+#  13: 4160] flags
+    try:
+    # load basics
+      self.planetid = int(data[0])
+      self.name = str(data[3])
+      self.society = int(data[4])
+      self.tax = float(data[9])
+      self.tarif = float(data[10])
+      self.location = [ float(data[11]), float(data[12]) ]
+      self.flags = int(data[13])
+
+    # load commodities
+      resources = data[8]
+      self.population = int(resources[resource_map['people']])
+      self.money = int(resources[resource_map['quatloos']])
+      self.steel = int(resources[resource_map['steel']])
+      self.unobtanium = int(resources[resource_map['unobtanium']])
+      self.strangeness = int(resources[resource_map['strangeness']])
+      self.food = int(resources[resource_map['food']])
+      self.antimatter = int(resources[resource_map['antimatter']])
+      self.consumergoods = int(resources[resource_map['consumergoods']])
+      self.charm = int(resources[resource_map['charm']])
+      self.helium3 = int(resources[resource_map['helium3']])
+      self.hydrocarbon = int(resources[resource_map['hydrocarbon']])
+      self.krellmetal = int(resources[resource_map['krellmetal']])
+
+      self._loaded = True
+    except:
+      return False
+
+    return True
+
   def how_many_can_build(self, manifest):
     self.load()
     cost = ship_cost(manifest)
@@ -407,22 +473,22 @@ class Planet:
       newcount = self.money / cost['money']
       if (count < 0 or newcount < count): count = newcount
     if cost['steel'] > 0:
-      newcount = self.steel[0] / cost['steel']
+      newcount = self.steel / cost['steel']
       if (count < 0 or newcount < count): count = newcount
     if cost['population'] > 0:
       newcount = self.population / cost['population']
       if (count < 0 or newcount < count): count = newcount
     if cost['unobtanium'] > 0:
-      newcount = self.unobtanium[0] / cost['unobtanium']
+      newcount = self.unobtanium / cost['unobtanium']
       if (count < 0 or newcount < count): count = newcount
     if cost['food'] > 0:
-      newcount = self.food[0] / cost['food']
+      newcount = self.food / cost['food']
       if (count < 0 or newcount < count): count = newcount
     if cost['antimatter'] > 0:
-      newcount = self.antimatter[0] / cost['antimatter']
+      newcount = self.antimatter / cost['antimatter']
       if (count < 0 or newcount < count): count = newcount
     if cost['krellmetal'] > 0:
-      newcount = self.krellmetal[0] / cost['krellmetal']
+      newcount = self.krellmetal / cost['krellmetal']
       if (count < 0 or newcount < count): count = newcount
 
     if (count < 0): count = 0
@@ -450,12 +516,12 @@ class Planet:
         if self._loaded:
           cost = ship_cost(manifest)
           self.money -= cost['money']
-          self.steel[0] -= cost['steel']
+          self.steel -= cost['steel']
           self.population -= cost['population']
-          self.unobtanium[0] -= cost['unobtanium']
-          self.food[0] -= cost['food']
-          self.antimatter[0] -= cost['antimatter']
-          self.krellmetal[0] -= cost['krellmetal']
+          self.unobtanium -= cost['unobtanium']
+          self.food -= cost['food']
+          self.antimatter -= cost['antimatter']
+          self.krellmetal -= cost['krellmetal']
         if interactive:
           js = 'javascript:handleserverresponse(%s);' % req
           subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
@@ -468,12 +534,12 @@ class Planet:
     if fleet.scrap() and self._loaded and fleet._loaded:
       value = ship_cost(fleet.ships)
       self.money += value['money']
-      self.steel[0] += value['steel']
+      self.steel += value['steel']
       self.population += value['population']
-      self.unobtanium[0] += value['unobtanium']
-      self.food[0] += value['food']
-      self.antimatter[0] += value['antimatter']
-      self.krellmetal[0] += value['krellmetal']
+      self.unobtanium += value['unobtanium']
+      self.food += value['food']
+      self.antimatter += value['antimatter']
+      self.krellmetal += value['krellmetal']
       return value
     else:
       return None
@@ -938,36 +1004,31 @@ class Galaxy:
     self.load_planet_cache()
     if self._planets: return self._planets
 
-    sys.stderr.write('no planet cache, fetching list of planets\n')
+    print("fetching planets")
+
+    sys.stderr.write('no planet cache, fetching list of planets')
     i=1
     planets = []
-    while True:
-      try:
-        url = URL_PLANETS % i
-        req = self.urlopen(url)
-        soup = BeautifulSoup(json.loads(req)['tab'])
-        for row in soup('tr')[1:]:
-          cells=row('td')
-          planetid=re.search(r'/planets/([0-9]*)/',
-                             str(row('td')[0])).group(1)
-          name = str(cells[4].string)
-          coords = re.search(r'\(([0-9.]+),([0-9.]+)\)', str(row('td')[9]))
-          location = map(lambda x: float(x), coords.groups())
+    try:
+      req = self.urlopen(URL_PLANETS_JSON)
+      j = json.loads(req)
 
-# </th><th class="rowheader">Name</th>
-# <th class="rowheader">Society</th>
-# <th class="rowheader">Population</th>
-# <th class="rowheader">Tax Rate</th>
-# <th class="rowheader">Tariff Rate</th>
-#<td>\n <img src=\"/site_media/center.png\" \n class=\"noborder\"\n onclick=\"gm.centermap(1636.382371,1472.795540);\"\n title=\"center on planet\"/>
+      commodities = j['commodities']
 
-          planets.append(Planet(self, planetid, name, location))
-        sys.stderr.write('\rfetched %i planets total' % len(planets))
+      planetlist = j['planetlist']
+      #print planetlist
+      for value in planetlist:
+        #print value
+        p = Planet(self)
+        if not p.load_from_json(value, commodities):
+          continue
+        #print p
         i += 1
-      except KeyError:
-        break
-      except ValueError:
-        break
+        planets.append(p)
+
+    except:
+      sys.stderr.write('error fetching from json planet url\n');
+
     sys.stderr.write('\nfinished fetching, fetched %i planets total\n' % len(planets))
     self._planets = planets
     self.write_planet_cache()
