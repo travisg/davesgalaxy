@@ -50,7 +50,7 @@ def buildarcs(g, level):
       confirm = 'y'
       if p.can_build(solo):
         print '"%s", %d, %d, %d, %d, %d' % (
-          p.name, p.planetid, p.society, p.money, p.antimatter[0], p.steel[0]
+          p.name, p.planetid, p.society, p.money, p.antimatter, p.steel
           )
       while confirm == 'y' and p.can_build(solo):
         if p.can_build(escorted):

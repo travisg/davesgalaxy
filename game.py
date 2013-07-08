@@ -150,6 +150,14 @@ ALL_SHIPS = {
                'money':2815,
                'krellmetal':0,
                'needbase':True},
+  'longhaulmerchants': {'steel':350,
+               'unobtanium':0,
+               'population':15,
+               'food':15,
+               'antimatter':80,
+               'money':6000,
+               'krellmetal':5,
+               'needbase':False},
 }
 
 UPGRADES = [
@@ -169,6 +177,21 @@ UPGRADES = [
   'Fusion Power Plant',
   'Antimatter Power Plant'
 ]
+
+PLANET_RESOURCE_TYPES = {
+    'steel':9,
+    'unobtanium':11,
+    'strangeness':10,
+    'people':7,
+    'food':3,
+    'antimatter':0,
+    'consumergoods':2,
+    'charm':1,
+    'quatloos':8,
+    'helium3':4,
+    'hydrocarbon':5,
+    'krellmetal':6
+}
 
 FLEET_DISPOSITIONS = {
   1:'Planetary Defense',
@@ -201,8 +224,6 @@ FLEET_SHIP_TYPES = {
   13:"superbattleships",
   14:"carriers"
 };
-
-ME = 'me'
 
 def pairs(t):
   return izip(*[iter(t)]*2)
@@ -285,6 +306,9 @@ def ParseFleet(fleetstr):
     elif c == 'm':
       fleet.update(merchantmen=num)
       num = 0
+    elif c == 'M':
+      fleet.update(longhaulmerchants=num)
+      num = 0
     elif c == 'h':
       fleet.update(harvesters=num)
       num = 0
@@ -336,9 +360,9 @@ def TrimColonyTargettedPlanets(g, targets):
     try:
       if f.disposition == "Colonize":
       # look for destinations in the NAME-NUMBER form
-        pnum = int(f.destination.split('-')[1])
+        #print "looking at fleet %s, destination %s destplanet %d" % (f, f.destination, f.destplanetid)
         for p in targets:
-          if p.planetid == pnum:
+          if p.planetid == f.destplanetid:
             #print "fleet " + str(f) + " already heading for dest"
             targets.remove(p)
             break
@@ -367,16 +391,16 @@ def FleetDestToPlanetID(destination):
 
 
 class Planet:
-  def __init__(self, galaxy, planetid='0', name='unknown', location=None, owner=ME):
+  def __init__(self, galaxy, planetid='0', name='unknown', location=None, owner=-1):
     self.galaxy = galaxy
     self.planetid = int(planetid)
-    self.owner = str(owner)
+    self.owner = int(owner)
     self.name = str(name)
     self.location = location
     self._loaded = False
     self._upgrades = None
   def __repr__(self):
-    return "<Planet #%d \"%s\" owner %s>" % (self.planetid, self.name, self.owner)
+    return "<Planet #%d \"%s\" owner %d>" % (self.planetid, self.name, self.owner)
   def __getstate__(self):
     return dict(filter(lambda x:  x[0] != 'galaxy',  self.__dict__.items()))
   def load(self, force=False):
@@ -428,7 +452,7 @@ class Planet:
     self.loadUpgrades()
     self._loaded = True
     return True
-  def load_from_json(self, data, resource_map):
+  def load_from_json(self, data):
 #   resources:
 # {u'steel': 9,
 #  u'unobtanium': 11,
@@ -463,6 +487,10 @@ class Planet:
 #  13: 4160] flags
     try:
     # load basics
+      if data[1] == None:
+        self.owner = -1;
+      else:
+        self.owner = int(data[1])
       self.planetid = int(data[0])
       self.name = str(data[3])
       self.society = int(data[4])
@@ -472,19 +500,20 @@ class Planet:
       self.flags = int(data[13])
 
     # load commodities
-      resources = data[8]
-      self.population = int(resources[resource_map['people']])
-      self.money = int(resources[resource_map['quatloos']])
-      self.steel = int(resources[resource_map['steel']])
-      self.unobtanium = int(resources[resource_map['unobtanium']])
-      self.strangeness = int(resources[resource_map['strangeness']])
-      self.food = int(resources[resource_map['food']])
-      self.antimatter = int(resources[resource_map['antimatter']])
-      self.consumergoods = int(resources[resource_map['consumergoods']])
-      self.charm = int(resources[resource_map['charm']])
-      self.helium3 = int(resources[resource_map['helium3']])
-      self.hydrocarbon = int(resources[resource_map['hydrocarbon']])
-      self.krellmetal = int(resources[resource_map['krellmetal']])
+      if self.owner >= 0:
+        resources = data[8]
+        self.population = int(resources[PLANET_RESOURCE_TYPES['people']])
+        self.money = int(resources[PLANET_RESOURCE_TYPES['quatloos']])
+        self.steel = int(resources[PLANET_RESOURCE_TYPES['steel']])
+        self.unobtanium = int(resources[PLANET_RESOURCE_TYPES['unobtanium']])
+        self.strangeness = int(resources[PLANET_RESOURCE_TYPES['strangeness']])
+        self.food = int(resources[PLANET_RESOURCE_TYPES['food']])
+        self.antimatter = int(resources[PLANET_RESOURCE_TYPES['antimatter']])
+        self.consumergoods = int(resources[PLANET_RESOURCE_TYPES['consumergoods']])
+        self.charm = int(resources[PLANET_RESOURCE_TYPES['charm']])
+        self.helium3 = int(resources[PLANET_RESOURCE_TYPES['helium3']])
+        self.hydrocarbon = int(resources[PLANET_RESOURCE_TYPES['hydrocarbon']])
+        self.krellmetal = int(resources[PLANET_RESOURCE_TYPES['krellmetal']])
 
       self._loaded = True
     except:
@@ -539,10 +568,9 @@ class Planet:
                                     urllib.urlencode(formdata))
       if 'Fleet Built' in req:
         j = json.loads(req)
-        fleet = Fleet(self.galaxy,
-                      j['newfleet']['i'],
-                      [j['newfleet']['x'], j['newfleet']['y']],
-                      True) # feets are created at planets
+        fleetjson = j['newfleet']
+        fleet = Fleet(self.galaxy)
+        fleet.load_from_json(fleetjson)
         if self.galaxy._fleets:
           self.galaxy.fleets.append(fleet)
         if self._loaded:
@@ -687,7 +715,7 @@ class Fleet:
     self.coords = coords
     self.at_planet = at
     self.home = None
-    self.disposition_id = -1
+    self.dispositionid = -1
     self._loaded = False
   def __repr__(self):
     return "<Fleet #%d%s @ (%.1f,%.1f)>" % (self.fleetid,
@@ -797,15 +825,12 @@ class Fleet:
     try:
       self.fleetid = int(fleet[0])
       self.coords = [float(fleet[4]), float(fleet[5])]
-
       self.home = self.galaxy.find_planet(int(fleet[12]))
-
       self.destination = [float(fleet[6]), float(fleet[7])]
+
+      self.destplanetid = -1
       if fleet[14] != None:
-        # heading for planet
-        destplanet = self.galaxy.find_planet(int(fleet[14]))
-        if destplanet != None:
-          self.destination = destplanet
+        self.destplanetid = int(fleet[14])
 
       self.routeid = -1
       if fleet[15] != None:
@@ -813,7 +838,7 @@ class Fleet:
         self.routeid = int(fleet[15])
 
       self.speed = float(fleet[9])
-      self.disposition_id = int(fleet[18])
+      self.dispositionid = int(fleet[18])
 
       self.ships = {}
       count = 0
@@ -899,7 +924,7 @@ class Fleet:
   @property
   def disposition(self):
     try:
-      return FLEET_DISPOSITIONS[self.disposition_id]
+      return FLEET_DISPOSITIONS[self.dispositionid]
     except KeyError:
       return 'Unknown'
 
@@ -942,8 +967,8 @@ class Galaxy:
     self._planets = None
     self._fleets = None
     self._routes = None
-    self._stars = None # alien planets
     self._logged_in = False
+    self._playerid = None
     self.session = None
     try:
       cache_file = open(CREDENTIAL_CACHE_FILE, 'r')
@@ -993,6 +1018,7 @@ class Galaxy:
                  "Accept": "application/json, text/javascript, */*",
                  "Accept-Encoding": "gzip",
                  "Connection": "keep-alive",
+                 #"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/27.0.1453.116 Safari/537.36"
       }
       headers.update(sessionheader)
 
@@ -1099,6 +1125,24 @@ class Galaxy:
     return survey
 
   @property
+  def playerid(self):
+    if self._playerid >= 0: return self._playerid
+
+    # fetch the playerid from the main page
+    req = self.urlopen("/view/")
+
+    lines = req.split('\n')
+
+    playeridrule = re.compile(".*gm.player_id = ([0-9]+)\;.*")
+    for line in lines:
+      #print line
+      match = playeridrule.match(line)
+      if match != None:
+        self._playerid = int(match.group(1))
+
+    return self._playerid
+
+  @property
   def routes(self):
     if self._routes: return self._routes
     self.load_routes()
@@ -1120,14 +1164,12 @@ class Galaxy:
       req = self.urlopen(URL_PLANETS_JSON)
       j = json.loads(req)
 
-      commodities = j['commodities']
-
       planetlist = j['planetlist']
       #print planetlist
       for value in planetlist:
         #print value
         p = Planet(self)
-        if not p.load_from_json(value, commodities):
+        if not p.load_from_json(value):
           continue
         #print p
         i += 1
@@ -1148,7 +1190,7 @@ class Galaxy:
     self.load_fleet_cache()
     if self._fleets: return self._fleets
 
-    sys.stderr.write('no fleet cache, fetching list of fleets\n')
+    sys.stderr.write('no fleet cache, fetching list of fleets')
     i=1
     fleets = []
 
@@ -1230,20 +1272,19 @@ class Galaxy:
         for pnum in planets:
           #print "\tplanet " + str(pnum)
           try:
-            p = planets[pnum]
-            pid = int(p["i"])
-            owner = int(p.get("o", 0))
-            locationx = float(p["x"])
-            locationy = float(p["y"])
-            name = str(p["n"])
-            #print planet
-            if owner == 0:
-              planet = Planet(self, pid, name, [ locationx, locationy ], "unowned")
-              unowned_planets.append(planet)
+            pdata = planets[pnum]
+
+            p = Planet(self)
+            if not p.load_from_json(pdata):
+              sys.syserr.write("failed to load from json")
+              continue
+
+            if p.owner < 0:
+              unowned_planets.append(p)
             else:
-              planet = Planet(self, pid, name, [ locationx, locationy ], str(owner))
-              owned_planets.append(planet)
+              owned_planets.append(p)
           except:
+            print "failed"
             pass
     result = {}
     result["planets"] = {}

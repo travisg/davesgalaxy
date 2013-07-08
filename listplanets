@@ -48,8 +48,8 @@ for p in g.planets:
       upgrades_avail += "%s" % game.UPGRADES[idx]
       showcomma = True
 
-  print '"%s", %d, %d, %d, %d, %d, %d, %.1f, %.1f, {%s}, {%s}' % (
-    p.name, p.planetid, p.society, p.population,
+  print '"%s", %d, %d, %d, %d, %d, %d, %d, %.1f, %.1f, {%s}, {%s}' % (
+    p.name, p.owner, p.planetid, p.society, p.population,
     p.money, p.food, p.steel, p.tax, p.tarif,
     upgrades, upgrades_avail
     )
