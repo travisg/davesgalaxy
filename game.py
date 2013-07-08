@@ -170,6 +170,38 @@ UPGRADES = [
   'Antimatter Power Plant'
 ]
 
+FLEET_DISPOSITIONS = {
+  1:'Planetary Defense',
+  2:'Scout',
+  3:'Screen',
+  5:'Attack',
+  6:'Colonize',
+  7:'Patrol',
+  8:'Trade',
+  9:'Piracy',
+  10:'Planetary Assault',
+  11:'Helium Harvesting',
+  12:'Long Haul Trade'
+}
+
+FLEET_SHIP_TYPES = {
+  0:"scouts",
+  1:"blackbirds",
+  2:"arcs",
+  3:"merchantmen",
+  4:"longhaulmerchants",
+  5:"bulkfreighters",
+  6:"harvesters",
+  7:"fighters",
+  8:"subspacers",
+  9:"frigates",
+  10:"destroyers",
+  11:"cruisers",
+  12:"battleships",
+  13:"superbattleships",
+  14:"carriers"
+};
+
 ME = 'me'
 
 def pairs(t):
@@ -649,13 +681,13 @@ class Planet:
     return self.manage(name, self.tax, self.tarif)
 
 class Fleet:
-  def __init__(self, galaxy, fleetid, coords, at=False):
+  def __init__(self, galaxy, fleetid=0, coords=[0.0,0.0], at=False):
     self.galaxy = galaxy
     self.fleetid = int(fleetid)
     self.coords = coords
     self.at_planet = at
     self.home = None
-    self.disposition = None
+    self.disposition_id = -1
     self._loaded = False
   def __repr__(self):
     return "<Fleet #%d%s @ (%.1f,%.1f)>" % (self.fleetid,
@@ -729,6 +761,75 @@ class Fleet:
 
     self._loaded = True
     return True
+  def load_from_json(self, fleet):
+# mapping of fields
+# { "direction":8,"route_id":15,"name":3,"sector_id":2,"curleg":16,"shiplist":11,"destination_id":14,
+#  "disposition":18,"source_id":13,"sensorrange":10,"homeport_id":12,"flags":19,"dx":6,"dy":7,"y":5,"x":4,
+#  "society":17,"speed":9,"id":0,"owner_id":1, };
+# mapping of flags
+# { "destroyed":1,"merchant":16,"damaged":2,"scout":4,"military":32,"pirated":64,"inport":128,"colonization":8, };
+# mapping of ships
+# { "superbattleships":13,"bulkfreighters":5,"subspacers":8,"carriers":14,"arcs":2,"blackbirds":1,"merchantmen":3,
+# "fighters":7,"battleships":12,"longhaulmerchants":4,"harvesters":6,"destroyers":10,"scouts":0,"cruisers":11,"frigates":9, };
+# example:
+# 0: [1292802, id
+# 1:  953, owner_id
+# 2:  231228, sector_id
+# 3:  u'', name
+# 4:  1155.92347453678, x
+# 5:  1144.85528089374, y
+# 6:  1139.82812186714, dx
+# 7:  1143.56695685857, dy
+# 8:  1.49092338493912, direction
+# 9:  4.546, speed
+# 10:  0.808, sensorrange
+# 11:  [20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], shiplist
+# 12:  5994573, homeport_id
+# 13:  5994573, source_id
+# 14:  None, destination_id - planetid
+# 15:  217454, route_id
+# 16:  0, curleg
+# 17:  54, society
+# 18:  2, disposition
+# 19:  4] flags
+
+    #print fleet
+    try:
+      self.fleetid = int(fleet[0])
+      self.coords = [float(fleet[4]), float(fleet[5])]
+
+      self.home = self.galaxy.find_planet(int(fleet[12]))
+
+      self.destination = [float(fleet[6]), float(fleet[7])]
+      if fleet[14] != None:
+        # heading for planet
+        destplanet = self.galaxy.find_planet(int(fleet[14]))
+        if destplanet != None:
+          self.destination = destplanet
+
+      self.routeid = -1
+      if fleet[15] != None:
+        # on route
+        self.routeid = int(fleet[15])
+
+      self.speed = float(fleet[9])
+      self.disposition_id = int(fleet[18])
+
+      self.ships = {}
+      count = 0
+      for i,val in enumerate(fleet[11]):
+        if val > 0:
+          self.ships[FLEET_SHIP_TYPES[i]] = val
+          count += val
+      if count == 0:
+        # throw away empty fleets (just destroyed or landed)
+        return False
+    except:
+      sys.stderr.write('failed to parse fleet json:\n %s\n' % str(fleet))
+      return False
+
+    self._loaded = True
+    return True
   def move_to_planet(self, planet):
     formdata = {}
     formdata['planet' ] = planet.planetid
@@ -795,6 +896,12 @@ class Fleet:
     js = 'javascript:gm.centermap(%d, %d);' % (self.coords[0],
                                                self.coords[1])
     subprocess.call(['osascript', 'EvalJavascript.scpt', js ])
+  @property
+  def disposition(self):
+    try:
+      return FLEET_DISPOSITIONS[self.disposition_id]
+    except KeyError:
+      return 'Unknown'
 
 class Route:
   def __init__(self, galaxy, id, circular, name, points):
@@ -1044,30 +1151,28 @@ class Galaxy:
     sys.stderr.write('no fleet cache, fetching list of fleets\n')
     i=1
     fleets = []
-    while True:
-      try:
-        url = URL_FLEETS % i
-        req = self.urlopen(url)
-        soup = BeautifulSoup(json.loads(req)['tab'])
-        for row in soup('tr')[1:]:
-          cells=row('td')
-          fleetid=re.search(r'/fleets/([0-9]*)/',
-                             str(row('td')[0])).group(1)
-#class=\"rowheader\"/>\n      <th class=\"rowheader\">ID</th><th
-#class=\"rowheader\">Ships</th>\n      <th
-#class=\"rowheader\">Disposition</th><th
-#class=\"rowheader\">Destination</th>\n      <th
-#class=\"rowheader\">Att.</th><th class=\"rowheader\">Def.</th>\n
-          coords = parse_coords(
-            re.search(r'gm.centermap(\([0-9.,]+\))', str(row)).group(1))
-          at_planet = bool(re.search(r'\'scrapfleet\':[0-9]+', str(row)))
-          fleets.append(Fleet(self, fleetid, coords, at=at_planet))
-        sys.stderr.write('\rfetched %i fleets total' % len(fleets))
+
+    try:
+      req = self.urlopen(URL_FLEETS_JSON)
+      j = json.loads(req)
+      #print j
+
+      shiptypes = j['shiptypes']
+      #print shiptypes
+      fleetlist = j['fleetlist']
+      #print fleetlist
+
+      for value in fleetlist:
+        f = Fleet(self)
+        if not f.load_from_json(value):
+          continue
+        #print f
         i += 1
-      except KeyError:
-        break
-      except ValueError:
-        break
+        fleets.append(f)
+
+    except:
+      sys.stderr.write('error fetching from json fleet url\n');
+
     sys.stderr.write('\nfinished fetching, fetched %i fleets total\n' % len(fleets))
     self._fleets = fleets
     self.write_fleet_cache()
