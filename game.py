@@ -498,6 +498,10 @@ class Planet:
       self.tarif = float(data[10])
       self.location = [ float(data[11]), float(data[12]) ]
       self.flags = int(data[13])
+      # parse flags
+      # known flags:
+      #   0x40 - allow trade
+      self.allowtrade = (self.flags & 0x40) != 0
 
     # load commodities
       if self.owner >= 0:
@@ -680,7 +684,7 @@ class Planet:
     self.upgrades[index] = UPGRADE_AVAILABLE
     return True
 
-  def manage(self, name, taxrate, tariff):
+  def manage(self, name, taxrate, tariff, allowtrade):
     if (taxrate >= 0.0 and taxrate <= 30.0):
       self.tax = float(taxrate)
     if (tariff >= 0.0 and tariff <= 30.0):
@@ -692,6 +696,10 @@ class Planet:
     formdata['name'] = self.name
     formdata['tariffrate'] = str(self.tarif)
     formdata['inctaxrate'] = str(self.tax)
+    if (allowtrade):
+      formdata['opentrade'] = 'on'
+    else:
+      formdata['opentrade'] = 'off'
     req = self.galaxy.urlopen(URL_PLANET_MANAGE % self.planetid,
                                   urllib.urlencode(formdata))
     success = 'Planet Managed' in req
@@ -700,13 +708,16 @@ class Planet:
     return success
 
   def set_tax(self, rate):
-    return self.manage(self.name, rate, self.tarif)
+    return self.manage(self.name, rate, self.tarif, self.allowtrade)
 
   def set_tariff(self, rate):
-    return self.manage(self.name, self.tax, rate)
+    return self.manage(self.name, self.tax, rate, self.allowtrade)
 
   def set_name(self, name):
-    return self.manage(name, self.tax, self.tarif)
+    return self.manage(name, self.tax, self.tarif, self.allowtrade)
+
+  def allow_trade(self):
+    return self.manage(self.name, self.tax, self.tarif, True)
 
 class Fleet:
   def __init__(self, galaxy, fleetid=0, coords=[0.0,0.0], at=False):

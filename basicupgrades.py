@@ -24,6 +24,8 @@ def main():
                     action="store", default=30, type="int", help="ratio of defense to military bases")
   parser.add_option("-t", "--tax", dest="tax", type="float",
                     action="store", help="set tax rate")
+  parser.add_option("-r", "--trade", dest="allowtrade", default=False,
+                    action="store_true", help="set allow trade")
   (options, args) = parser.parse_args()
 
   print options
@@ -36,7 +38,8 @@ def main():
     # try to pick up stored credentials
     g.login()
 
-  BuildUpgrades(g, options.doupgrade, options.mindcontrol, options.defense, options.military, options.tax, options.defensepercent)
+  BuildUpgrades(g, options.doupgrade, options.mindcontrol, options.defense,
+      options.military, options.tax, options.allowtrade, options.defensepercent)
   g.write_planet_cache()
 
 def BuildUpgrade(p, doupgrade, upgrade):
@@ -51,7 +54,7 @@ def BuildUpgrade(p, doupgrade, upgrade):
     print "\twould have built %s at %s." % (upgrade, p.name)
   return total
 
-def BuildUpgrades(g, doupgrade, domindcontrol, dodefense, domilitary, tax, defensepercent=30):
+def BuildUpgrades(g, doupgrade, domindcontrol, dodefense, domilitary, tax, allowtrade, defensepercent=30):
   has_pd = []
   total = 0
 
@@ -64,6 +67,12 @@ def BuildUpgrades(g, doupgrade, domindcontrol, dodefense, domilitary, tax, defen
         print "\tsetting tax rate to " + str(tax)
         if doupgrade:
           p.set_tax(tax)
+
+    if allowtrade:
+      if p.allowtrade != True:
+        print "\tenabling trade"
+        if doupgrade:
+          p.allow_trade()
 
     # ratio to skew the upgrades based on what the actual tax rate is relative to 7%
     taxconstant = 7 / p.tax
