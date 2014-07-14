@@ -90,12 +90,12 @@ def BuildUpgrades(g, doupgrade, domindcontrol, dodefense, domilitary, tax, allow
       total += BuildUpgrade(p, doupgrade, 'Long Range Sensors 2')
     if p.society > 40 and p.can_upgrade('Matter Synth 1') and p.population >= 400000 * taxconstant:
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 1')
+    if p.society > 50 and p.can_upgrade('Petrochemical Power Plant') and p.population >= 500000 * taxconstant:
+      total += BuildUpgrade(p, doupgrade, 'Petrochemical Power Plant')
     if p.society > 50 and p.can_upgrade('Matter Synth 2') and p.population >= 900000 * taxconstant:
       total += BuildUpgrade(p, doupgrade, 'Matter Synth 2')
     if p.society > 50 and p.can_upgrade('Slingshot') and p.population >= 1500000 * taxconstant:
       total += BuildUpgrade(p, doupgrade, 'Slingshot')
-    if p.society > 50 and p.can_upgrade('Petrochemical Power Plant') and p.population >= 5000000 * taxconstant:
-      total += BuildUpgrade(p, doupgrade, 'Petrochemical Power Plant')
     if domindcontrol and p.can_upgrade('Mind Control'):
       if p.society < 90 and p.society >= 75: # mind control at 80
         total += BuildUpgrade(p, doupgrade, 'Mind Control')
