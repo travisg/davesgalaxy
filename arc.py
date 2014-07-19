@@ -38,9 +38,9 @@ def main():
                     action="store", type="float", help="target radius to consider")
 
   parser.add_option("-s", "--source_route", dest="source",
-                    type="string", help="route enclosing source")
+                    action="append", type="string", help="route(s) enclosing source")
   parser.add_option("-S", "--sink_route", dest="sink",
-                    type="string", help="route enclosing sink")
+                    action="append", type="string", help="route(s) enclosing sink")
 
   (options, args) = parser.parse_args()
 
@@ -48,12 +48,6 @@ def main():
     print "not enough arguments"
     parser.print_help()
     sys.exit(1)
-
-  # if they didn't set tx/ty/tr, copy from sx/sy/sr
-  if options.tx == None: options.tx = options.sx
-  if options.ty == None: options.ty = options.sy
-  if options.tr == None: options.tr = options.sr
-  if options.sink == None: options.sink = options.source
 
   print "options " + str(options)
 
@@ -65,25 +59,70 @@ def main():
     # try to pick up stored credentials
     g.login()
 
-  sink_shape = None
-  if options.sink != None:
-    sink_route = g.find_route(options.sink)
-    sink_shape = shape.Polygon(*(sink_route.points))
-  else:
-    sink_shape = shape.Circle([options.tx, options.ty], options.tr)
-
-  source_shape = None
+  # compute the source shape(s) passed in from the command line
+  source_shapes = []
   if options.source != None:
-    source_route = g.find_route(options.source)
-    source_shape = shape.Polygon(*(source_route.points))
-  else:
-    source_shape = shape.Circle([options.sx, options.sy], options.sr)
+    for source in options.source:
+      print "adding source route %s" % source
+      route = g.find_route(source)
+      if route == None:
+        print "source route %s not found" % source
+        sys.exit(1)
+      s = shape.Polygon(*(route.points))
+      s.name = source
+      source_shapes.append(s)
+  elif options.sx != None and options.sy != None and options.sr != None:
+    print "adding source circle"
+    source_shapes.append(shape.Circle([options.sx, options.sy], options.sr))
+
+  # compute the sink shape(s) passed in from the command line
+  sink_shapes = []
+  if options.sink != None:
+    for sink in options.sink:
+      print "adding sink route %s" % sink
+      route = g.find_route(sink)
+      if route == None:
+        print "sink route %s not found" % sink
+        sys.exit(1)
+      s = shape.Polygon(*(route.points))
+      s.name = sink
+      sink_shapes.append(s)
+  elif options.tx != None and options.ty != None and options.tr != None:
+    print "adding sink circle"
+    sink_shapes.append(shape.Circle([options.tx, options.ty], options.tr))
+
+  # check to see if they passed in any source shapes
+  if len(source_shapes) == 0:
+    print "no source shapes or coordinates found"
+    parser.print_help()
+    sys.exit(1)
+
+  # if they didn't pass any sink shapes or coordinates, copy from source
+  if len(sink_shapes) == 0:
+    sink_shapes = source_shapes
 
   BuildArcs(g, options.doupgrade, options.maxarcs,
             options.perplanet, options.leave,
-            source_shape, sink_shape, options.escort)
+            source_shapes, sink_shapes, options.escort)
 
-def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink, escort):
+def uniqify(seq, idfun=None):
+   # f5 from http://www.peterbe.com/plog/uniqifiers-benchmark
+   # order preserving
+   if idfun is None:
+       def idfun(x): return x
+   seen = {}
+   result = []
+   for item in seq:
+       marker = idfun(item)
+       # in old Python versions:
+       # if seen.has_key(marker)
+       # but in new ones:
+       if marker in seen: continue
+       seen[marker] = 1
+       result.append(item)
+   return result
+
+def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, sources, sinks, escort):
 
   escortfleet = game.ParseFleet(escort)
   print escortfleet
@@ -97,27 +136,36 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink, escort):
   total_arcs = 0
   arc_builders = []
   for p in g.planets:
-    if source.inside(p.location):
-      p.load()
-      count = p.how_many_can_build(arc)
-      if count > 0 and ((p.society > 40 and p.population > 1000000) or p.population > 5000000):
-        print "planet " + str(p) + " can build " + str(count) + " arcs"
-        p.distance_to_target = sink.distance(p.location)
-        arc_builders.append(p)
-        total_arcs += count
+    for s in sources:
+      if s.inside(p.location):
+        p.load()
+        count = p.how_many_can_build(arc)
+        if count > 0 and ((p.society > 40 and p.population > 1000000) or p.population > 5000000):
+          print "planet " + str(p) + " can build " + str(count) + " arcs"
+
+          arc_builders.append(p)
+          total_arcs += count
 
   print "found " + str(len(arc_builders)) + " arc building planets capable of building " + str(total_arcs) + " arcs"
 
   # load the sectors around the target point
-  print "looking for unowned planets at target location..."
-  unowned_targets = game.FindUnownedPlanetsInShape(g, sink)
-  
-  print "found " + str(len(unowned_targets)) + " unowned planets"
+  unowned_targets = []
+  for s in sinks:
+    print "looking for unowned planets at target shape %s..." % s.name
+    t = game.FindUnownedPlanetsInShape(g, s)
+    print "\tfound %d targets" % len(t)
+    unowned_targets.extend(t)
+
+  # remove duplicates
+  print "found %d unowned planets total" % len(unowned_targets)
+  print "removing duplicates..."
+  unowned_targets = uniqify(unowned_targets, idfun=lambda p: p.planetid)
+  print "\tnow have %d unowned planets" % len(unowned_targets)
 
   # trim the list of targets to ones that dont have an arc already incoming
   print "trimming list of unowned planets..."
   unowned_targets = game.TrimColonyTargettedPlanets(g, unowned_targets)
-  print "now have " + str(len(unowned_targets)) + " unowned planets"
+  print "\tnow have %d unowned planets" % len(unowned_targets)
 
   # build arcs
   built = 0
@@ -129,9 +177,11 @@ def BuildArcs(g, doupgrade, maxarcs, perplanet, leave, source, sink, escort):
       p.targets = sorted(unowned_targets, key=lambda planet: game.distance_between(planet.location, p.location))
       p.arcs_can_build = p.how_many_can_build(arc) # delete later
       p.arcs_built = 0
-  
+
     # iterate through the list, building the shortest builder -> target path until out of arcs or one of the passed in terminating conditions
     while len(arc_builders) > 0 and len(unowned_targets) > 0:
+      print "%d builders and %d targets remain" % (len(arc_builders), len(unowned_targets))
+
       # sort all of the arc builders by the shortest closest target
       arc_builders = sorted(arc_builders, key=lambda planet: game.distance_between(planet.location, planet.targets[0].location))
 
